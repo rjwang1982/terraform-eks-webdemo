@@ -1,0 +1,20 @@
+# Kubernetes PersistentVolumeClaim 配置（EFS）
+# 作者: RJ.Wang
+# 邮箱: wangrenjun@gmail.com
+# 创建时间: 2025-11-14
+
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: eks-info-app-efs-pvc
+  namespace: rj-webdemo
+  labels:
+    app: eks-info-app
+    storage-type: efs
+spec:
+  accessModes:
+    - ReadWriteMany
+  storageClassName: efs-sc
+  resources:
+    requests:
+      storage: 20Gi

@@ -1,0 +1,131 @@
+# Kubernetes Deployment 配置
+# 作者: RJ.Wang
+# 邮箱: wangrenjun@gmail.com
+# 创建时间: 2025-11-14
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: eks-info-app
+  namespace: rj-webdemo
+  labels:
+    app: eks-info-app
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: eks-info-app
+  template:
+    metadata:
+      labels:
+        app: eks-info-app
+    spec:
+      serviceAccountName: eks-info-app-sa
+      containers:
+      - name: eks-info-app
+        # ECR 镜像 URI
+        image: 269490040603.dkr.ecr.ap-southeast-1.amazonaws.com/eks-info-app:latest
+        imagePullPolicy: Always
+        ports:
+        - name: http
+          containerPort: 5000
+          protocol: TCP
+        
+        # 资源限制
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+        
+        # 卷挂载
+        volumeMounts:
+        - name: ebs-storage
+          mountPath: /data/ebs
+        - name: efs-storage
+          mountPath: /data/efs
+        
+        # 环境变量
+        env:
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: POD_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        - name: NODE_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+        - name: S3_BUCKET_NAME
+          value: "eks-info-app-data"
+        - name: FLASK_ENV
+          value: "production"
+        - name: LOG_LEVEL
+          value: "INFO"
+        
+        # 健康检查探针
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 5000
+            scheme: HTTP
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 3
+          successThreshold: 1
+          failureThreshold: 3
+        
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 5000
+            scheme: HTTP
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+          successThreshold: 1
+          failureThreshold: 3
+        
+        # 启动探针
+        startupProbe:
+          httpGet:
+            path: /health
+            port: 5000
+            scheme: HTTP
+          initialDelaySeconds: 0
+          periodSeconds: 5
+          timeoutSeconds: 3
+          successThreshold: 1
+          failureThreshold: 12
+      
+      # 卷定义
+      volumes:
+      - name: ebs-storage
+        persistentVolumeClaim:
+          claimName: eks-info-app-ebs-pvc
+      - name: efs-storage
+        persistentVolumeClaim:
+          claimName: eks-info-app-efs-pvc
+      
+      # 调度策略
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - eks-info-app
+              topologyKey: kubernetes.io/hostname

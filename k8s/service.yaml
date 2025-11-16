@@ -1,0 +1,22 @@
+# Kubernetes Service 配置（ClusterIP）
+# 作者: RJ.Wang
+# 邮箱: wangrenjun@gmail.com
+# 创建时间: 2025-11-14
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: eks-info-app-service
+  namespace: rj-webdemo
+  labels:
+    app: eks-info-app
+spec:
+  type: ClusterIP
+  selector:
+    app: eks-info-app
+  ports:
+    - name: http
+      protocol: TCP
+      port: 80
+      targetPort: 5000
+  sessionAffinity: None

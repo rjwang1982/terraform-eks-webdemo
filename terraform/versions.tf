@@ -39,7 +39,10 @@ provider "kubernetes" {
   exec {
     api_version = "client.authentication.k8s.io/v1beta1"
     command     = "aws"
-    args        = ["eks", "get-token", "--cluster-name", aws_eks_cluster.main.name, "--region", var.aws_region, "--output", "json"]
+    args = concat(
+      var.aws_profile != null ? ["--profile", var.aws_profile] : [],
+      ["eks", "get-token", "--cluster-name", aws_eks_cluster.main.name, "--region", var.aws_region, "--output", "json"]
+    )
   }
 }
 
@@ -51,7 +54,10 @@ provider "helm" {
     exec = {
       api_version = "client.authentication.k8s.io/v1beta1"
       command     = "aws"
-      args        = ["eks", "get-token", "--cluster-name", aws_eks_cluster.main.name, "--region", var.aws_region, "--output", "json"]
+      args = concat(
+        var.aws_profile != null ? ["--profile", var.aws_profile] : [],
+        ["eks", "get-token", "--cluster-name", aws_eks_cluster.main.name, "--region", var.aws_region, "--output", "json"]
+      )
     }
   }
 }

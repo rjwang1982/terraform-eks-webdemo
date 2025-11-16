@@ -1,4 +1,6 @@
-# Terraform files
+# ============================================
+# Terraform 文件
+# ============================================
 *.tfstate
 *.tfstate.*
 .terraform/
@@ -29,7 +31,51 @@ override.tf.json
 .terraformrc
 terraform.rc
 
-# OS generated files
+# ============================================
+# 日志文件 (需求 8.1)
+# ============================================
+*.log
+deployment.log
+terraform-apply*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ============================================
+# Python 缓存和虚拟环境 (需求 8.2)
+# ============================================
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.venv/
+venv/
+ENV/
+env/
+*.egg-info/
+dist/
+build/
+*.egg
+.Python
+pip-log.txt
+pip-delete-this-directory.txt
+
+# ============================================
+# 临时文件 (需求 8.3)
+# ============================================
+*.tmp
+*.bak
+*.backup
+*.swp
+*.swo
+*~
+.cache/
+tmp/
+temp/
+
+# ============================================
+# 系统生成文件 (需求 8.4)
+# ============================================
 .DS_Store
 .DS_Store?
 ._*
@@ -37,13 +83,24 @@ terraform.rc
 .Trashes
 ehthumbs.db
 Thumbs.db
+desktop.ini
 
-# IDE files
+# ============================================
+# IDE 和编辑器文件
+# ============================================
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
+.project
+.classpath
+.settings/
 
-# Log files
-*.log
+# ============================================
+# 备份文件 (需求 8.4)
+# ============================================
+project-backup-*.tar.gz
+*.backup
+*~
+*.orig

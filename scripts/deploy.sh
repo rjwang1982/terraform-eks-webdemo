@@ -13,6 +13,8 @@
 
 # 全局变量
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+TERRAFORM_DIR="${PROJECT_ROOT}/terraform"
 LOG_FILE="${SCRIPT_DIR}/deployment.log"
 MAX_RETRIES=3
 RETRY_DELAY=10
@@ -194,11 +196,18 @@ init_terraform() {
     log_info "初始化 Terraform..."
     echo "  正在下载 Provider 插件，首次运行可能需要几分钟..."
     
+    cd "$TERRAFORM_DIR" || {
+        log_error "无法进入 Terraform 目录: $TERRAFORM_DIR"
+        return 1
+    }
+    
     if retry_command "terraform init" "Terraform 初始化" 3 15; then
         log_success "Terraform 初始化完成"
+        cd "$PROJECT_ROOT" || return 1
         return 0
     else
         log_error "Terraform 初始化失败"
+        cd "$PROJECT_ROOT" || return 1
         return 1
     fi
 }
@@ -208,8 +217,14 @@ plan_terraform() {
     log_info "生成 Terraform 执行计划..."
     echo "  分析当前基础设施状态..."
     
+    cd "$TERRAFORM_DIR" || {
+        log_error "无法进入 Terraform 目录: $TERRAFORM_DIR"
+        return 1
+    }
+    
     if safe_execute "terraform plan -out=tfplan -detailed-exitcode" "Terraform 计划生成"; then
         local exit_code=$?
+        cd "$PROJECT_ROOT" || return 1
         case $exit_code in
             0) 
                 log_warning "没有检测到变更"
@@ -226,6 +241,7 @@ plan_terraform() {
         esac
     else
         log_error "执行计划生成失败"
+        cd "$PROJECT_ROOT" || return 1
         return 1
     fi
 }
@@ -258,6 +274,11 @@ apply_terraform() {
     
     local start_time=$(date +%s)
     
+    cd "$TERRAFORM_DIR" || {
+        log_error "无法进入 Terraform 目录: $TERRAFORM_DIR"
+        return 1
+    }
+    
     if retry_command "terraform apply tfplan" "Terraform 基础设施部署" 2 30; then
         local end_time=$(date +%s)
         local duration=$((end_time - start_time))
@@ -265,9 +286,11 @@ apply_terraform() {
         local seconds=$((duration % 60))
         
         log_success "基础设施部署完成！用时: ${minutes}分${seconds}秒"
+        cd "$PROJECT_ROOT" || return 1
         return 0
     else
         log_error "基础设施部署失败"
+        cd "$PROJECT_ROOT" || return 1
         echo ""
         echo "故障排除建议："
         echo "1. 检查 AWS 配额限制"
@@ -298,10 +321,16 @@ detect_k8s_provider_error() {
 check_infrastructure_ready() {
     log_info "检查基础设施状态..."
     
+    cd "$TERRAFORM_DIR" || {
+        log_error "无法进入 Terraform 目录: $TERRAFORM_DIR"
+        return 1
+    }
+    
     # 检查 EKS 集群是否存在
     local cluster_name=$(terraform output -raw eks_cluster_name 2>/dev/null)
     if [ -z "$cluster_name" ]; then
         log_error "无法获取 EKS 集群名称"
+        cd "$PROJECT_ROOT" || return 1
         return 1
     fi
     
@@ -309,10 +338,12 @@ check_infrastructure_ready() {
     local cluster_status=$(aws eks describe-cluster --name "$cluster_name" --query 'cluster.status' --output text 2>/dev/null)
     if [ "$cluster_status" != "ACTIVE" ]; then
         log_error "EKS 集群状态不正常: $cluster_status"
+        cd "$PROJECT_ROOT" || return 1
         return 1
     fi
     
     log_success "基础设施检查通过，EKS 集群 $cluster_name 状态正常"
+    cd "$PROJECT_ROOT" || return 1
     return 0
 }
 
@@ -323,6 +354,11 @@ smart_apply_terraform() {
     
     local start_time=$(date +%s)
     
+    cd "$TERRAFORM_DIR" || {
+        log_error "无法进入 Terraform 目录: $TERRAFORM_DIR"
+        return 1
+    }
+    
     # 尝试 Terraform 部署
     if retry_command "terraform apply tfplan" "Terraform 完整部署" 2 30; then
         local end_time=$(date +%s)
@@ -331,9 +367,11 @@ smart_apply_terraform() {
         local seconds=$((duration % 60))
         
         log_success "完整部署成功！用时: ${minutes}分${seconds}秒"
+        cd "$PROJECT_ROOT" || return 1
         return 0
     else
         log_warning "Terraform 完整部署失败，开始智能恢复..."
+        cd "$PROJECT_ROOT" || return 1
         
         # 检测是否为 Kubernetes provider 错误
         if detect_k8s_provider_error; then
@@ -365,8 +403,15 @@ smart_apply_terraform() {
 configure_kubectl() {
     log_info "配置 kubectl..."
     
+    cd "$TERRAFORM_DIR" || {
+        log_error "无法进入 Terraform 目录: $TERRAFORM_DIR"
+        return 1
+    }
+    
     local cluster_name=$(terraform output -raw eks_cluster_name 2>/dev/null)
     local region=$(terraform output -raw aws_region 2>/dev/null || echo "ap-southeast-1")
+    
+    cd "$PROJECT_ROOT" || return 1
     
     if [ -n "$cluster_name" ]; then
         if retry_command "aws eks update-kubeconfig --region '$region' --name '$cluster_name'" "kubectl 配置" 3 5; then
@@ -401,6 +446,11 @@ smart_deploy_kubernetes_apps() {
         return 1
     fi
     
+    cd "$TERRAFORM_DIR" || {
+        log_error "无法进入 Terraform 目录: $TERRAFORM_DIR"
+        return 1
+    }
+    
     # 获取集群信息
     local app_namespace=$(terraform output -raw app_namespace 2>/dev/null || echo "rj-webdemo")
     local cluster_name=$(terraform output -raw eks_cluster_name 2>/dev/null)
@@ -411,6 +461,8 @@ smart_deploy_kubernetes_apps() {
     
     # 检查是否已有 Terraform 管理的 Kubernetes 资源
     local k8s_resources=$(terraform state list | grep -E "(kubernetes|helm)" | wc -l)
+    
+    cd "$PROJECT_ROOT" || return 1
     
     if [ "$k8s_resources" -gt 0 ]; then
         log_info "检测到 Terraform 管理的 Kubernetes 资源，使用 Terraform 部署"
@@ -445,8 +497,8 @@ manual_deploy_kubernetes_apps() {
     create_k8s_manifests "$app_namespace" "$cluster_name"
     
     # 部署应用清单
-    if [ -f "k8s-manifests.yaml" ]; then
-        if retry_command "kubectl apply -f k8s-manifests.yaml" "应用清单部署" 3 10; then
+    if [ -f "${PROJECT_ROOT}/k8s-manifests.yaml" ]; then
+        if retry_command "kubectl apply -f ${PROJECT_ROOT}/k8s-manifests.yaml" "应用清单部署" 3 10; then
             log_success "Kubernetes 应用清单部署成功"
         else
             log_error "Kubernetes 应用清单部署失败"
@@ -455,6 +507,16 @@ manual_deploy_kubernetes_apps() {
     else
         log_error "未找到 k8s-manifests.yaml 文件"
         return 1
+    fi
+    
+    # 部署存储类和 PVC
+    if [ -d "${PROJECT_ROOT}/k8s/storage" ]; then
+        log_info "部署存储配置..."
+        if retry_command "kubectl apply -f ${PROJECT_ROOT}/k8s/storage/" "存储配置部署" 3 10; then
+            log_success "存储配置部署成功"
+        else
+            log_warning "存储配置部署失败，继续..."
+        fi
     fi
     
     # 安装 AWS Load Balancer Controller
@@ -473,7 +535,7 @@ create_k8s_manifests() {
     # 获取 AWS 账户 ID
     local account_id=$(aws sts get-caller-identity --query Account --output text 2>/dev/null)
     
-    cat > k8s-manifests.yaml << EOF
+    cat > "${PROJECT_ROOT}/k8s-manifests.yaml" << EOF
 ---
 apiVersion: v1
 kind: ServiceAccount
@@ -663,8 +725,8 @@ deploy_kubernetes_apps() {
     fi
     
     # 部署应用清单
-    if [ -f "k8s-manifests.yaml" ]; then
-        if retry_command "kubectl apply -f k8s-manifests.yaml" "应用清单部署" 3 10; then
+    if [ -f "${PROJECT_ROOT}/k8s-manifests.yaml" ]; then
+        if retry_command "kubectl apply -f ${PROJECT_ROOT}/k8s-manifests.yaml" "应用清单部署" 3 10; then
             log_success "Kubernetes 应用清单部署成功"
         else
             log_error "Kubernetes 应用清单部署失败"
@@ -672,6 +734,16 @@ deploy_kubernetes_apps() {
         fi
     else
         log_warning "未找到 k8s-manifests.yaml 文件，跳过应用部署"
+    fi
+    
+    # 部署存储类和 PVC
+    if [ -d "${PROJECT_ROOT}/k8s/storage" ]; then
+        log_info "部署存储配置..."
+        if retry_command "kubectl apply -f ${PROJECT_ROOT}/k8s/storage/" "存储配置部署" 3 10; then
+            log_success "存储配置部署成功"
+        else
+            log_warning "存储配置部署失败，继续..."
+        fi
     fi
     
     # 安装 AWS Load Balancer Controller
@@ -692,10 +764,17 @@ deploy_alb_controller() {
         return 1
     fi
     
+    cd "$TERRAFORM_DIR" || {
+        log_error "无法进入 Terraform 目录: $TERRAFORM_DIR"
+        return 1
+    }
+    
     # 获取集群信息
     local cluster_name=$(terraform output -raw eks_cluster_name 2>/dev/null)
     local region=$(terraform output -raw aws_region 2>/dev/null || echo "ap-southeast-1")
     local vpc_id=$(terraform output -raw vpc_id 2>/dev/null)
+    
+    cd "$PROJECT_ROOT" || return 1
     
     if [ -z "$cluster_name" ] || [ -z "$vpc_id" ]; then
         log_error "无法获取集群信息"
@@ -724,7 +803,14 @@ deploy_alb_controller() {
 smart_wait_for_application() {
     log_info "等待应用就绪..."
     
+    cd "$TERRAFORM_DIR" || {
+        log_error "无法进入 Terraform 目录: $TERRAFORM_DIR"
+        return 1
+    }
+    
     local app_namespace=$(terraform output -raw app_namespace 2>/dev/null || echo "rj-webdemo")
+    
+    cd "$PROJECT_ROOT" || return 1
     
     # 等待 Pod 就绪
     echo "  等待 Pod 启动（最多 5 分钟）..."
@@ -840,7 +926,14 @@ smart_test_alb_connectivity() {
 wait_for_application() {
     log_info "等待应用就绪..."
     
+    cd "$TERRAFORM_DIR" || {
+        log_error "无法进入 Terraform 目录: $TERRAFORM_DIR"
+        return 1
+    }
+    
     local app_namespace=$(terraform output -raw app_namespace 2>/dev/null || echo "rj-webdemo")
+    
+    cd "$PROJECT_ROOT" || return 1
     
     # 等待 Pod 就绪
     echo "  等待 Pod 启动（最多 5 分钟）..."
@@ -901,6 +994,11 @@ smart_show_results() {
     log_success "🎉 智能部署完成！"
     echo "=========================================="
     
+    cd "$TERRAFORM_DIR" || {
+        log_error "无法进入 Terraform 目录: $TERRAFORM_DIR"
+        return 1
+    }
+    
     # 显示部署模式
     local k8s_resources=$(terraform state list | grep -E "(kubernetes|helm)" | wc -l)
     if [ "$k8s_resources" -gt 0 ]; then
@@ -937,9 +1035,12 @@ smart_show_results() {
     # 显示集群信息
     echo ""
     echo "🏗️ 集群信息:"
+    
+    cd "$TERRAFORM_DIR" || return 1
     local cluster_name=$(terraform output -raw eks_cluster_name 2>/dev/null)
     local region=$(terraform output -raw aws_region 2>/dev/null || echo "ap-southeast-1")
     local vpc_id=$(terraform output -raw vpc_id 2>/dev/null)
+    cd "$PROJECT_ROOT" || return 1
     
     echo "   集群名称: $cluster_name"
     echo "   区域: $region"
@@ -1007,8 +1108,16 @@ show_results() {
     log_success "🎉 部署完成！"
     echo "=========================================="
     
+    cd "$TERRAFORM_DIR" || {
+        log_error "无法进入 Terraform 目录: $TERRAFORM_DIR"
+        return 1
+    }
+    
     # 显示访问信息
     local app_namespace=$(terraform output -raw app_namespace 2>/dev/null || echo "rj-webdemo")
+    
+    cd "$PROJECT_ROOT" || return 1
+    
     local alb_hostname=$(kubectl get ingress rj-py-webdemo-ingress -n $app_namespace -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null)
     
     if [ -n "$alb_hostname" ] && [ "$alb_hostname" != "null" ]; then
@@ -1048,9 +1157,17 @@ smart_cleanup_resources() {
     log_info "开始智能清理所有资源..."
     echo ""
     
+    cd "$TERRAFORM_DIR" || {
+        log_error "无法进入 Terraform 目录: $TERRAFORM_DIR"
+        return 1
+    }
+    
     # 检查资源状态
     local terraform_resources=$(terraform state list 2>/dev/null | wc -l)
     local k8s_resources=$(terraform state list 2>/dev/null | grep -E "(kubernetes|helm)" | wc -l)
+    
+    cd "$PROJECT_ROOT" || return 1
+    
     local manual_k8s_resources=false
     
     # 检查是否有手动部署的 Kubernetes 资源
@@ -1121,6 +1238,11 @@ smart_cleanup_resources() {
     log_info "清理 Terraform 管理的资源..."
     
     if [ "$terraform_resources" -gt 0 ]; then
+        cd "$TERRAFORM_DIR" || {
+            log_error "无法进入 Terraform 目录: $TERRAFORM_DIR"
+            return 1
+        }
+        
         if retry_command "terraform destroy -auto-approve" "Terraform 资源清理" 2 60; then
             local end_time=$(date +%s)
             local duration=$((end_time - start_time))
@@ -1131,7 +1253,9 @@ smart_cleanup_resources() {
             
             # 清理本地文件
             log_info "清理本地文件..."
-            rm -f tfplan terraform.tfstate.backup k8s-manifests.yaml
+            rm -f tfplan terraform.tfstate.backup
+            cd "$PROJECT_ROOT" || return 1
+            rm -f k8s-manifests.yaml
             
             echo ""
             echo "🎉 智能清理完成！"
@@ -1143,11 +1267,12 @@ smart_cleanup_resources() {
             return 0
         else
             log_error "Terraform 资源清理失败"
+            cd "$PROJECT_ROOT" || return 1
             echo ""
             echo "🔧 故障排除建议："
             echo "1. 手动检查 AWS 控制台中的资源"
             echo "2. 确认没有其他依赖资源阻止删除"
-            echo "3. 重新运行清理命令: ./deploy.sh clean"
+            echo "3. 重新运行清理命令: ./scripts/deploy.sh clean"
             echo "4. 查看详细日志: $LOG_FILE"
             echo ""
             echo "🚨 重要提醒："
@@ -1192,6 +1317,11 @@ cleanup_resources() {
     log_info "等待 ALB 资源清理..."
     sleep 30
     
+    cd "$TERRAFORM_DIR" || {
+        log_error "无法进入 Terraform 目录: $TERRAFORM_DIR"
+        return 1
+    }
+    
     # 清理 Terraform 资源
     if retry_command "terraform destroy -auto-approve" "Terraform 资源清理" 2 60; then
         local end_time=$(date +%s)
@@ -1203,13 +1333,16 @@ cleanup_resources() {
         
         # 清理本地文件
         log_info "清理本地文件..."
-        rm -f tfplan terraform.tfstate.backup k8s-manifests.yaml
+        rm -f tfplan terraform.tfstate.backup
+        cd "$PROJECT_ROOT" || return 1
+        rm -f k8s-manifests.yaml
         
         echo ""
         echo "🎉 清理完成！所有 AWS 资源已删除，不会再产生费用。"
         return 0
     else
         log_error "资源清理失败"
+        cd "$PROJECT_ROOT" || return 1
         echo ""
         echo "故障排除建议："
         echo "1. 手动检查 AWS 控制台中的资源"

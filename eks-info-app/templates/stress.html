@@ -1,0 +1,288 @@
+{% extends "base.html" %}
+
+{% block title %}压力测试 - EKS Info WebApp{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>⚡ 压力测试</h1>
+    <p>执行 CPU 和内存压力测试，观察 HPA 自动扩展</p>
+</div>
+
+<div class="content">
+    <!-- 当前资源使用情况 -->
+    <div class="card">
+        <div class="card-header">
+            📊 当前资源使用情况
+            <button onclick="loadCurrentUsage()" class="btn btn-secondary" style="float: right; padding: 5px 15px;">刷新</button>
+        </div>
+        <div class="card-body" id="currentUsage">
+            <!-- 资源使用情况将通过 JavaScript 加载 -->
+        </div>
+    </div>
+    
+    <!-- CPU 压力测试 -->
+    <div class="card">
+        <div class="card-header">🔥 CPU 压力测试</div>
+        <div class="card-body">
+            <form id="cpuStressForm" onsubmit="startCPUStress(event)">
+                <div class="form-group">
+                    <label for="cpuDuration">持续时间（秒）</label>
+                    <input type="number" id="cpuDuration" class="form-control" value="60" min="10" max="300" required>
+                </div>
+                <div class="form-group">
+                    <label for="cpuIntensity">强度级别（1-10）</label>
+                    <input type="number" id="cpuIntensity" class="form-control" value="5" min="1" max="10" required>
+                </div>
+                <button type="submit" class="btn btn-danger" id="cpuStressBtn">启动 CPU 压力测试</button>
+                <button type="button" class="btn btn-secondary" onclick="stopStress('cpu')" style="margin-left: 10px;">停止测试</button>
+            </form>
+            <div id="cpuStressStatus" style="margin-top: 15px;"></div>
+        </div>
+    </div>
+    
+    <!-- 内存压力测试 -->
+    <div class="card">
+        <div class="card-header">💾 内存压力测试</div>
+        <div class="card-body">
+            <form id="memoryStressForm" onsubmit="startMemoryStress(event)">
+                <div class="form-group">
+                    <label for="memoryDuration">持续时间（秒）</label>
+                    <input type="number" id="memoryDuration" class="form-control" value="60" min="10" max="300" required>
+                </div>
+                <div class="form-group">
+                    <label for="memoryTarget">目标内存（MB）</label>
+                    <input type="number" id="memoryTarget" class="form-control" value="256" min="50" max="1024" required>
+                </div>
+                <button type="submit" class="btn btn-danger" id="memoryStressBtn">启动内存压力测试</button>
+                <button type="button" class="btn btn-secondary" onclick="stopStress('memory')" style="margin-left: 10px;">停止测试</button>
+            </form>
+            <div id="memoryStressStatus" style="margin-top: 15px;"></div>
+        </div>
+    </div>
+    
+    <!-- HPA 状态 -->
+    <div class="card">
+        <div class="card-header">
+            📈 HPA 状态
+            <button onclick="loadHPAStatus()" class="btn btn-secondary" style="float: right; padding: 5px 15px;">刷新</button>
+        </div>
+        <div class="card-body" id="hpaStatus">
+            <!-- HPA 状态将通过 JavaScript 加载 -->
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // 作者: RJ.Wang
+    // 邮箱: wangrenjun@gmail.com
+    // 创建时间: 2025-11-14
+    
+    let statusInterval = null;
+    
+    // 加载当前资源使用情况
+    async function loadCurrentUsage() {
+        try {
+            const data = await apiRequest('/stress/usage');
+            displayCurrentUsage(data);
+        } catch (error) {
+            console.error('加载资源使用情况失败:', error);
+        }
+    }
+    
+    // 显示当前资源使用情况
+    function displayCurrentUsage(data) {
+        const container = document.getElementById('currentUsage');
+        
+        let html = '<table class="table">';
+        
+        if (data.cpu_usage !== undefined) {
+            const cpuClass = data.cpu_usage > 70 ? 'error' : data.cpu_usage > 50 ? 'warning' : 'success';
+            html += `<tr><th>CPU 使用率</th><td><span class="status-badge ${cpuClass}">${data.cpu_usage.toFixed(2)}%</span></td></tr>`;
+        }
+        
+        if (data.memory_usage) {
+            const memPercent = (data.memory_usage.used_mb / data.memory_usage.total_mb * 100).toFixed(2);
+            const memClass = memPercent > 80 ? 'error' : memPercent > 60 ? 'warning' : 'success';
+            html += `<tr><th>内存使用</th><td>${data.memory_usage.used_mb.toFixed(0)} MB / ${data.memory_usage.total_mb.toFixed(0)} MB <span class="status-badge ${memClass}">${memPercent}%</span></td></tr>`;
+        }
+        
+        if (data.pod_info) {
+            html += `<tr><th>当前 Pod</th><td>${data.pod_info.name}</td></tr>`;
+        }
+        
+        html += '</table>';
+        container.innerHTML = html;
+    }
+    
+    // 启动 CPU 压力测试
+    async function startCPUStress(event) {
+        event.preventDefault();
+        
+        const duration = parseInt(document.getElementById('cpuDuration').value);
+        const intensity = parseInt(document.getElementById('cpuIntensity').value);
+        
+        try {
+            const data = await apiRequest('/stress/cpu', {
+                method: 'POST',
+                body: JSON.stringify({ duration, intensity })
+            });
+            
+            showSuccess('CPU 压力测试已启动！');
+            
+            // 开始监控状态
+            startStatusMonitoring('cpu', data.test_id);
+        } catch (error) {
+            console.error('启动 CPU 压力测试失败:', error);
+        }
+    }
+    
+    // 启动内存压力测试
+    async function startMemoryStress(event) {
+        event.preventDefault();
+        
+        const duration = parseInt(document.getElementById('memoryDuration').value);
+        const targetMB = parseInt(document.getElementById('memoryTarget').value);
+        
+        try {
+            const data = await apiRequest('/stress/memory', {
+                method: 'POST',
+                body: JSON.stringify({ duration, target_mb: targetMB })
+            });
+            
+            showSuccess('内存压力测试已启动！');
+            
+            // 开始监控状态
+            startStatusMonitoring('memory', data.test_id);
+        } catch (error) {
+            console.error('启动内存压力测试失败:', error);
+        }
+    }
+    
+    // 停止压力测试
+    async function stopStress(type) {
+        try {
+            await apiRequest(`/stress/stop/${type}`, {
+                method: 'POST'
+            });
+            
+            showSuccess('压力测试已停止！');
+            stopStatusMonitoring();
+            loadCurrentUsage();
+        } catch (error) {
+            console.error('停止压力测试失败:', error);
+        }
+    }
+    
+    // 开始监控状态
+    function startStatusMonitoring(type, testId) {
+        stopStatusMonitoring();
+        
+        statusInterval = setInterval(async () => {
+            try {
+                const data = await apiRequest(`/stress/status/${testId}`);
+                displayStressStatus(type, data);
+                
+                // 同时更新资源使用情况
+                loadCurrentUsage();
+                
+                // 如果测试完成，停止监控
+                if (data.status === 'completed' || data.status === 'stopped') {
+                    stopStatusMonitoring();
+                }
+            } catch (error) {
+                console.error('获取压力测试状态失败:', error);
+                stopStatusMonitoring();
+            }
+        }, 2000);
+    }
+    
+    // 停止监控状态
+    function stopStatusMonitoring() {
+        if (statusInterval) {
+            clearInterval(statusInterval);
+            statusInterval = null;
+        }
+    }
+    
+    // 显示压力测试状态
+    function displayStressStatus(type, data) {
+        const containerId = type === 'cpu' ? 'cpuStressStatus' : 'memoryStressStatus';
+        const container = document.getElementById(containerId);
+        
+        let html = '<div style="padding: 15px; background-color: #f8f9fa; border-radius: 4px;">';
+        html += `<p><strong>状态:</strong> <span class="status-badge ${getStatusClass(data.status)}">${data.status}</span></p>`;
+        
+        if (data.progress !== undefined) {
+            html += `<p><strong>进度:</strong> ${data.progress.toFixed(1)}%</p>`;
+            html += `<div style="background-color: #ddd; border-radius: 4px; height: 20px; overflow: hidden;">`;
+            html += `<div style="background-color: #ff9900; height: 100%; width: ${data.progress}%; transition: width 0.3s;"></div>`;
+            html += `</div>`;
+        }
+        
+        if (data.elapsed_seconds !== undefined) {
+            html += `<p><strong>已运行:</strong> ${data.elapsed_seconds} 秒</p>`;
+        }
+        
+        if (data.remaining_seconds !== undefined) {
+            html += `<p><strong>剩余:</strong> ${data.remaining_seconds} 秒</p>`;
+        }
+        
+        html += '</div>';
+        container.innerHTML = html;
+    }
+    
+    // 加载 HPA 状态
+    async function loadHPAStatus() {
+        try {
+            const data = await apiRequest('/stress/hpa');
+            displayHPAStatus(data);
+        } catch (error) {
+            console.error('加载 HPA 状态失败:', error);
+        }
+    }
+    
+    // 显示 HPA 状态
+    function displayHPAStatus(data) {
+        const container = document.getElementById('hpaStatus');
+        
+        if (!data.hpa) {
+            container.innerHTML = '<p>未找到 HPA 配置</p>';
+            return;
+        }
+        
+        const hpa = data.hpa;
+        let html = '<table class="table">';
+        html += `<tr><th>HPA 名称</th><td>${hpa.name || 'N/A'}</td></tr>`;
+        html += `<tr><th>当前副本数</th><td><span class="status-badge info">${hpa.current_replicas || 0}</span></td></tr>`;
+        html += `<tr><th>期望副本数</th><td><span class="status-badge success">${hpa.desired_replicas || 0}</span></td></tr>`;
+        html += `<tr><th>最小副本数</th><td>${hpa.min_replicas || 0}</td></tr>`;
+        html += `<tr><th>最大副本数</th><td>${hpa.max_replicas || 0}</td></tr>`;
+        
+        if (hpa.current_cpu_utilization !== undefined) {
+            const cpuClass = hpa.current_cpu_utilization > 70 ? 'error' : hpa.current_cpu_utilization > 50 ? 'warning' : 'success';
+            html += `<tr><th>当前 CPU 使用率</th><td><span class="status-badge ${cpuClass}">${hpa.current_cpu_utilization}%</span></td></tr>`;
+        }
+        
+        if (hpa.target_cpu_utilization !== undefined) {
+            html += `<tr><th>目标 CPU 使用率</th><td>${hpa.target_cpu_utilization}%</td></tr>`;
+        }
+        
+        html += '</table>';
+        container.innerHTML = html;
+    }
+    
+    // 页面加载时获取数据
+    document.addEventListener('DOMContentLoaded', () => {
+        loadCurrentUsage();
+        loadHPAStatus();
+        
+        // 每 5 秒自动刷新资源使用情况
+        setInterval(loadCurrentUsage, 5000);
+    });
+    
+    // 页面卸载时停止监控
+    window.addEventListener('beforeunload', stopStatusMonitoring);
+</script>
+{% endblock %}

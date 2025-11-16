@@ -1,0 +1,229 @@
+{% extends "base.html" %}
+
+{% block title %}S3 演示 - EKS Info WebApp{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>☁️ S3 对象存储演示</h1>
+    <p>演示应用如何通过 IRSA 访问 S3 对象存储</p>
+</div>
+
+<div class="content">
+    <!-- S3 信息 -->
+    <div class="card">
+        <div class="card-header">ℹ️ S3 存储桶信息</div>
+        <div class="card-body" id="s3Info">
+            <!-- S3 信息将通过 JavaScript 加载 -->
+        </div>
+    </div>
+    
+    <!-- 上传对象 -->
+    <div class="card">
+        <div class="card-header">⬆️ 上传对象</div>
+        <div class="card-body">
+            <form id="uploadForm" onsubmit="uploadObject(event)">
+                <div class="form-group">
+                    <label for="objectKey">对象键名</label>
+                    <input type="text" id="objectKey" class="form-control" placeholder="例如: data/test.txt" required>
+                </div>
+                <div class="form-group">
+                    <label for="content">内容</label>
+                    <textarea id="content" class="form-control" rows="3" placeholder="输入要上传的内容..." required></textarea>
+                </div>
+                <button type="submit" class="btn btn-primary">上传到 S3</button>
+            </form>
+        </div>
+    </div>
+    
+    <!-- 对象列表 -->
+    <div class="card">
+        <div class="card-header">
+            📦 对象列表
+            <button onclick="loadObjects()" class="btn btn-secondary" style="float: right; padding: 5px 15px;">刷新</button>
+        </div>
+        <div class="card-body" id="objectsContainer">
+            <!-- 对象列表将通过 JavaScript 加载 -->
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // 作者: RJ.Wang
+    // 邮箱: wangrenjun@gmail.com
+    // 创建时间: 2025-11-14
+    
+    // 加载 S3 信息
+    async function loadS3Info() {
+        try {
+            const data = await apiRequest('/s3/');
+            displayS3Info(data);
+        } catch (error) {
+            console.error('加载 S3 信息失败:', error);
+        }
+    }
+    
+    // 显示 S3 信息
+    function displayS3Info(data) {
+        const container = document.getElementById('s3Info');
+        
+        if (!data.s3_info) {
+            container.innerHTML = '<p>无法获取 S3 信息</p>';
+            return;
+        }
+        
+        const info = data.s3_info;
+        let html = '<table class="table">';
+        html += `<tr><th>存储桶名称</th><td>${info.bucket_name}</td></tr>`;
+        html += `<tr><th>区域</th><td>${info.region}</td></tr>`;
+        html += `<tr><th>状态</th><td><span class="status-badge ${info.available ? 'success' : 'error'}">${info.available ? '可用' : '不可用'}</span></td></tr>`;
+        html += `<tr><th>访问方式</th><td>IRSA (IAM Roles for Service Accounts)</td></tr>`;
+        
+        if (info.bucket_info) {
+            html += `<tr><th>对象数量</th><td>${info.bucket_info.object_count || 0}</td></tr>`;
+            html += `<tr><th>总大小</th><td>${formatBytes(info.bucket_info.total_size_bytes || 0)}</td></tr>`;
+        }
+        
+        html += '</table>';
+        
+        if (data.irsa_info) {
+            html += '<h4>IRSA 配置</h4>';
+            html += '<table class="table">';
+            html += `<tr><th>服务账号</th><td>${data.irsa_info.service_account}</td></tr>`;
+            html += `<tr><th>IAM 角色 ARN</th><td>${data.irsa_info.role_arn || 'N/A'}</td></tr>`;
+            html += '</table>';
+            html += '<p class="status-badge info">💡 应用通过 IRSA 自动获取临时凭证，无需硬编码密钥</p>';
+        }
+        
+        if (data.current_pod) {
+            html += '<h4>当前 Pod 信息</h4>';
+            html += '<table class="table">';
+            html += `<tr><th>Pod 名称</th><td>${data.current_pod.name}</td></tr>`;
+            html += `<tr><th>命名空间</th><td>${data.current_pod.namespace}</td></tr>`;
+            html += `<tr><th>节点</th><td>${data.current_pod.node}</td></tr>`;
+            html += '</table>';
+        }
+        
+        container.innerHTML = html;
+        
+        // 加载对象列表
+        if (data.objects) {
+            displayObjects(data.objects);
+        }
+    }
+    
+    // 上传对象
+    async function uploadObject(event) {
+        event.preventDefault();
+        
+        const objectKey = document.getElementById('objectKey').value;
+        const content = document.getElementById('content').value;
+        
+        try {
+            const data = await apiRequest('/s3/upload', {
+                method: 'POST',
+                body: JSON.stringify({ 
+                    key: objectKey,
+                    content: content
+                })
+            });
+            
+            showSuccess('对象上传成功！');
+            document.getElementById('objectKey').value = '';
+            document.getElementById('content').value = '';
+            
+            // 重新加载对象列表
+            loadObjects();
+        } catch (error) {
+            console.error('上传对象失败:', error);
+        }
+    }
+    
+    // 加载对象列表
+    async function loadObjects() {
+        try {
+            const data = await apiRequest('/s3/list');
+            displayObjects(data.objects);
+        } catch (error) {
+            console.error('加载对象列表失败:', error);
+        }
+    }
+    
+    // 显示对象列表
+    function displayObjects(objects) {
+        const container = document.getElementById('objectsContainer');
+        
+        if (!objects || objects.length === 0) {
+            container.innerHTML = '<p>暂无对象</p>';
+            return;
+        }
+        
+        let html = '<table class="table">';
+        html += '<thead><tr><th>对象键名</th><th>大小</th><th>最后修改时间</th><th>操作</th></tr></thead>';
+        html += '<tbody>';
+        
+        objects.forEach(obj => {
+            html += '<tr>';
+            html += `<td>${obj.key}</td>`;
+            html += `<td>${formatBytes(obj.size_bytes)}</td>`;
+            html += `<td>${formatTimestamp(obj.last_modified)}</td>`;
+            html += `<td>
+                <button onclick="downloadObject('${obj.key}')" class="btn btn-secondary" style="padding: 5px 10px; margin-right: 5px;">下载</button>
+                <button onclick="deleteObject('${obj.key}')" class="btn btn-danger" style="padding: 5px 10px;">删除</button>
+            </td>`;
+            html += '</tr>';
+        });
+        
+        html += '</tbody></table>';
+        container.innerHTML = html;
+    }
+    
+    // 下载对象
+    async function downloadObject(key) {
+        try {
+            const data = await apiRequest(`/s3/download/${encodeURIComponent(key)}`);
+            
+            if (data.content) {
+                // 创建下载链接
+                const blob = new Blob([data.content], { type: 'text/plain' });
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = key.split('/').pop();
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+                
+                showSuccess('对象下载成功！');
+            }
+        } catch (error) {
+            console.error('下载对象失败:', error);
+        }
+    }
+    
+    // 删除对象
+    async function deleteObject(key) {
+        if (!confirm(`确定要删除对象 "${key}" 吗？`)) {
+            return;
+        }
+        
+        try {
+            await apiRequest(`/s3/delete/${encodeURIComponent(key)}`, {
+                method: 'DELETE'
+            });
+            
+            showSuccess('对象删除成功！');
+            loadObjects();
+        } catch (error) {
+            console.error('删除对象失败:', error);
+        }
+    }
+    
+    // 页面加载时获取数据
+    document.addEventListener('DOMContentLoaded', () => {
+        loadS3Info();
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,49 @@
+# EKS Info WebApp Docker Ignore
+#
+# 作者: RJ.Wang
+# 邮箱: wangrenjun@gmail.com
+# 创建时间: 2025-11-14
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.venv/
+venv/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Git
+.git/
+.gitignore
+
+# 测试文件
+test_*.py
+*_test.py
+
+# 文档
+*.md
+!README.md
+
+# 日志
+*.log
+
+# 临时文件
+*.tmp
+.DS_Store
+
+# UV 包管理器
+uv.lock
+pyproject.toml

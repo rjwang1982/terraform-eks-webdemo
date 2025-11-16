@@ -8,8 +8,8 @@
 # --------------------------
 # AWS 基础配置
 # --------------------------
-# aws_profile = "your-profile-name"  # 取消注释并指定 profile 名称，如果不指定则使用系统默认
-aws_region = "ap-southeast-1"
+aws_profile = "terraform_0603" # 使用 Global 区 profile
+aws_region  = "ap-southeast-1"
 
 # --------------------------
 # VPC 配置
