@@ -2,7 +2,63 @@
 
 **作者：** RJ.Wang  
 **邮箱：** wangrenjun@gmail.com  
-**创建时间：** 2025-11-14
+**创建时间：** 2025-11-14  
+**最后更新：** 2025-11-16
+
+---
+
+## ⚠️ 重要说明
+
+**这些 YAML 文件仅用于以下场景**：
+
+1. **备用部署方案** 🔄
+   - 当 Terraform Kubernetes Provider 失败时
+   - 由 `scripts/deploy.sh` 自动使用
+   - 不需要手动干预
+
+2. **开发和测试** 🧪
+   - 快速测试单个资源配置
+   - 调试 Kubernetes 资源问题
+   - 验证配置正确性
+
+3. **故障排查** 🔍
+   - 分析资源配置
+   - 对比 Terraform 生成的资源
+   - 手动修复问题
+
+### 标准部署方式
+
+**推荐使用 Terraform 管理所有资源**：
+
+```bash
+cd terraform
+terraform apply
+```
+
+或使用部署脚本（会自动选择最佳方式）：
+
+```bash
+./scripts/deploy.sh
+```
+
+### ❌ 不要直接使用
+
+**不要直接使用** `kubectl apply -f k8s/` 进行生产部署，原因：
+
+- ⚠️ 会绕过 Terraform 状态管理
+- ⚠️ 导致资源管理不一致
+- ⚠️ 无法通过 Terraform 追踪变更
+- ⚠️ 可能与 Terraform 资源冲突
+
+### 如果需要手动部署
+
+如果确实需要手动部署（例如 Terraform 完全失败），请：
+
+1. 先尝试修复 Terraform 配置
+2. 如果无法修复，使用部署脚本的备用模式
+3. 部署后参考 [资源迁移指南](../TERRAFORM_MIGRATION_GUIDE.md)
+
+---
 
 ## 概述
 

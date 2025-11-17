@@ -138,23 +138,20 @@ aws --profile terraform_0603 sts get-caller-identity
 
 ### 步骤 1: 构建和推送 Docker 镜像
 
-首先需要构建应用镜像并推送到 ECR：
+首先需要构建应用镜像并推送到 ECR。
+
+**注意**：ECR 仓库由 Terraform 自动创建，无需手动创建。
 
 ```bash
-# 进入应用目录
+# 使用构建脚本（推荐）
+./scripts/build.sh
+
+# 或手动构建和推送
 cd eks-info-app
 
 # 获取 AWS 账户 ID
 AWS_ACCOUNT_ID=$(aws --profile terraform_0603 sts get-caller-identity --query Account --output text)
 AWS_REGION="ap-southeast-1"
-
-# 创建 ECR 仓库（如果不存在）
-aws --profile terraform_0603 ecr create-repository \
-  --repository-name eks-info-app \
-  --region $AWS_REGION \
-  --image-scanning-configuration scanOnPush=true \
-  --encryption-configuration encryptionType=AES256 \
-  || echo "仓库已存在"
 
 # 登录 ECR
 aws --profile terraform_0603 ecr get-login-password --region $AWS_REGION | \

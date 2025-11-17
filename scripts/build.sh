@@ -129,15 +129,17 @@ if ! aws --profile "$AWS_PROFILE" ecr describe-repositories \
     --repository-names eks-info-app \
     --region "$AWS_REGION" &>/dev/null; then
     
-    log_warning "ECR 仓库不存在，正在创建..."
-    aws --profile "$AWS_PROFILE" ecr create-repository \
-        --repository-name eks-info-app \
-        --region "$AWS_REGION" \
-        --image-scanning-configuration scanOnPush=true \
-        --encryption-configuration encryptionType=AES256 \
-        --tags Key=Project,Value=eks-info-app Key=Owner,Value=RJ.Wang
-    
-    log_success "ECR 仓库创建成功"
+    log_error "ECR 仓库不存在"
+    echo ""
+    echo "ECR 仓库由 Terraform 管理，请先运行 Terraform 创建基础设施："
+    echo "  cd terraform"
+    echo "  terraform init"
+    echo "  terraform apply"
+    echo ""
+    echo "或者运行完整部署脚本："
+    echo "  ./scripts/deploy.sh"
+    echo ""
+    exit 1
 else
     log_success "ECR 仓库已存在"
 fi

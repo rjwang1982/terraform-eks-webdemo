@@ -212,6 +212,44 @@ export AWS_DEFAULT_REGION="ap-southeast-1"
 8. ⏳ 等待应用就绪
 9. 📊 显示访问信息
 
+## 部署方式说明
+
+### 标准部署（推荐）✅
+
+本项目使用 **Terraform** 管理所有 AWS 和 Kubernetes 资源，这是推荐的部署方式：
+
+```bash
+./scripts/deploy.sh
+```
+
+**Terraform 管理的资源包括**：
+- ✅ VPC 和网络资源（子网、路由表、NAT Gateway 等）
+- ✅ EKS 集群和节点组
+- ✅ IAM 角色和策略
+- ✅ EFS 文件系统和 S3 存储桶
+- ✅ **ECR 仓库**（由 Terraform 自动创建）
+- ✅ Kubernetes 资源（Deployment、Service、Ingress 等）
+- ✅ Helm Charts（CSI Drivers、ALB Controller）
+
+### 智能恢复机制
+
+部署脚本包含智能恢复机制，当 Terraform Kubernetes Provider 遇到问题时，会自动切换到备用模式：
+
+1. **AWS 基础设施**：由 Terraform 创建 ✅
+2. **Kubernetes 资源**：通过 kubectl 和 Helm 创建 ⚠️
+3. **资源状态**：不在 Terraform 状态管理中 ⚠️
+
+**注意**：这是自动恢复机制，不需要手动干预。如果触发了备用模式，建议修复 Terraform 配置后重新部署。
+
+### k8s/ 目录说明
+
+`k8s/` 目录包含独立的 Kubernetes 清单文件，用于：
+- 🔄 备用部署方案（自动触发）
+- 🧪 开发和测试
+- 🔍 故障排查
+
+**⚠️ 重要**：不要直接使用 `kubectl apply -f k8s/` 进行生产部署，这会绕过 Terraform 管理。
+
 ### 步骤 3: 访问应用
 
 部署完成后，访问输出的 ALB 地址：

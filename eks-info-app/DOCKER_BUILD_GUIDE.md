@@ -268,15 +268,19 @@ __pycache__
 
 ### 前置步骤
 
-1. 创建 ECR 仓库（如果不存在）：
+**注意**：ECR 仓库由 Terraform 自动创建，无需手动创建。
+
+如果 ECR 仓库不存在，请先运行 Terraform：
 
 ```bash
-aws --profile susermt ecr create-repository \
-  --repository-name eks-info-app \
-  --region ap-southeast-1
+cd terraform
+terraform init
+terraform apply
 ```
 
-2. 获取 ECR 登录凭证：
+### 推送步骤
+
+1. 获取 ECR 登录凭证：
 
 ```bash
 aws --profile susermt ecr get-login-password \

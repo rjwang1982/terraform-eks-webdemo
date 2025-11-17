@@ -8,6 +8,60 @@
 # 数据源 - 获取当前 AWS 账户信息
 data "aws_caller_identity" "current" {}
 
+# --------------------------
+# ECR 仓库
+# --------------------------
+
+# ECR 仓库 - EKS Info App
+resource "aws_ecr_repository" "eks_info_app" {
+  name                 = "eks-info-app"
+  image_tag_mutability = "MUTABLE"
+
+  image_scanning_configuration {
+    scan_on_push = true
+  }
+
+  encryption_configuration {
+    encryption_type = "AES256"
+  }
+
+  tags = {
+    Name        = "eks-info-app"
+    Project     = "eks-info-app"
+    Application = "eks-info-app"
+    Owner       = "RJ.Wang"
+    BillingCode = "RJ"
+    Environment = "Sandbox"
+    ManagedBy   = "terraform"
+  }
+}
+
+# ECR 生命周期策略 - 保留最近 10 个镜像
+resource "aws_ecr_lifecycle_policy" "eks_info_app" {
+  repository = aws_ecr_repository.eks_info_app.name
+
+  policy = jsonencode({
+    rules = [
+      {
+        rulePriority = 1
+        description  = "Keep last 10 images"
+        selection = {
+          tagStatus   = "any"
+          countType   = "imageCountMoreThan"
+          countNumber = 10
+        }
+        action = {
+          type = "expire"
+        }
+      }
+    ]
+  })
+}
+
+# --------------------------
+# OIDC Provider for EKS
+# --------------------------
+
 # OIDC Provider for EKS
 data "tls_certificate" "eks" {
   url = aws_eks_cluster.main.identity[0].oidc[0].issuer
