@@ -19,7 +19,7 @@ vpc_cidr = "10.101.0.0/16"
 # --------------------------
 # 集群基础信息
 # --------------------------
-cluster_name = "RJtest-eks-cluster-20250822"
+cluster_name = "RJtest-eks-cluster-202511171652"
 
 ssh_key_name = "RJ-test-Pem-269490040603"
 

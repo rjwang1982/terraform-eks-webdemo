@@ -3,6 +3,7 @@
 **作者**: RJ.Wang  
 **邮箱**: wangrenjun@gmail.com  
 **创建时间**: 2025-11-16  
+**更新时间**: 2025-11-17  
 **用途**: 规范项目中所有 AWS 资源的创建和管理方式
 
 ---
@@ -10,36 +11,89 @@
 ## 核心原则
 
 ### Infrastructure as Code (IaC)
-本项目的所有 AWS 资源**必须**通过 Terraform 进行管理，禁止手动在 AWS 控制台创建资源。
+本项目采用**混合部署模式**，确保所有资源可追踪、可管理、可一键清除。
 
 ---
 
-## 强制要求
+## 部署模式
 
-### 1. 所有 AWS 资源必须使用 Terraform
+### 混合部署模式（推荐）✅
 
-**适用范围**：
+**基础设施层（Terraform 管理）**：
 - ✅ EKS 集群及节点组
 - ✅ VPC、子网、路由表、安全组
-- ✅ IAM 角色、策略、服务账号
+- ✅ IAM 角色、策略、IRSA 配置
 - ✅ ECR 仓库
-- ✅ Load Balancer (ALB/NLB)
-- ✅ RDS 数据库实例
+- ✅ EFS 文件系统
 - ✅ S3 存储桶
 - ✅ CloudWatch 日志组
-- ✅ 任何其他 AWS 服务资源
+- ✅ 所有 AWS 基础设施资源
+
+**应用层（kubectl/Helm 管理）**：
+- ✅ Kubernetes Namespace
+- ✅ Deployment、Service、Ingress
+- ✅ PVC（PersistentVolumeClaim）
+- ✅ HPA（HorizontalPodAutoscaler）
+- ✅ Helm Charts（CSI Drivers、ALB Controller）
+- ✅ 应用配置和密钥
+
+**采用混合模式的原因**：
+1. **稳定性**：避免 Terraform Kubernetes Provider 的网络超时问题
+2. **灵活性**：应用层可以快速迭代，不影响基础设施
+3. **最佳实践**：符合业界标准的职责分离原则
+4. **可靠清理**：部署脚本支持一键清除所有资源
 
 **禁止操作**：
-- ❌ 在 AWS 控制台手动创建资源
-- ❌ 使用 AWS CLI 直接创建资源（除非用于临时测试）
-- ❌ 使用 CloudFormation 或其他 IaC 工具
-- ❌ 绕过 Terraform 修改资源配置
+- ❌ 在 AWS 控制台手动创建基础设施资源
+- ❌ 使用 AWS CLI 直接创建基础设施（除非用于临时测试）
+- ❌ 使用 CloudFormation 或其他 IaC 工具管理基础设施
+- ❌ 绕过部署脚本手动创建资源
+
+---
+
+## 一键部署和清理
+
+### 部署所有资源
+
+```bash
+# 使用智能部署脚本（推荐）
+./scripts/deploy.sh deploy
+
+# 脚本会自动：
+# 1. 检查工具和 AWS 凭证
+# 2. 使用 Terraform 创建基础设施
+# 3. 配置 kubectl 连接到 EKS
+# 4. 使用 kubectl/Helm 部署应用
+# 5. 等待应用就绪并显示访问地址
+```
+
+### 一键清除所有资源
+
+```bash
+# 智能清理脚本（支持混合部署）
+./scripts/deploy.sh clean
+
+# 脚本会自动：
+# 1. 检测所有资源（Terraform + 手动部署）
+# 2. 先删除 Kubernetes 资源（包括 ALB）
+# 3. 再删除 Terraform 基础设施
+# 4. 清理本地临时文件
+# 5. 确保不产生任何遗留费用
+```
+
+**清理保证**：
+- ✅ 自动检测并删除所有 Terraform 管理的资源
+- ✅ 自动检测并删除所有手动部署的 Kubernetes 资源
+- ✅ 自动删除 ALB（由 Ingress 创建）
+- ✅ 自动删除 EBS 卷（由 PVC 创建）
+- ✅ 智能重试和错误恢复
+- ✅ 详细的清理日志和进度显示
 
 ---
 
 ## Terraform 工作流程
 
-### 标准操作流程
+### 标准操作流程（仅基础设施）
 
 ```bash
 # 1. 初始化 Terraform

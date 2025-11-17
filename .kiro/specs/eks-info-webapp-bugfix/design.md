@@ -14,7 +14,7 @@
 
 #### 1.1 S3 存储桶名称不匹配
 - **现象**: 日志显示 "S3 存储桶不存在: eks-info-app-data"
-- **原因**: Deployment 配置中使用 `eks-info-app-data`，但实际存储桶名称是 `rjtest-eks-cluster-20250822-eks-info-app-data`
+- **原因**: Deployment 配置中使用 `eks-info-app-data`，但实际存储桶名称是 `rjtest-eks-cluster-202511171652-eks-info-app-data`
 - **影响**: S3 相关功能无法正常工作
 - **优先级**: 高
 
@@ -44,7 +44,7 @@
 ```yaml
 env:
 - name: S3_BUCKET_NAME
-  value: "rjtest-eks-cluster-20250822-eks-info-app-data"  # 修改为正确的名称
+  value: "rjtest-eks-cluster-202511171652-eks-info-app-data"  # 修改为正确的名称
 ```
 
 #### 1.2 重新部署应用

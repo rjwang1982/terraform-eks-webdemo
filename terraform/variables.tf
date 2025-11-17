@@ -26,7 +26,7 @@ variable "vpc_cidr" {
 variable "cluster_name" {
   description = "EKS 集群名"
   type        = string
-  default     = "RJtest-eks-cluster-20250822"
+  default     = "RJtest-eks-cluster-202511171652"
 }
 
 variable "ssh_key_name" {

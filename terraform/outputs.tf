@@ -25,20 +25,13 @@ output "configure_kubectl" {
   value       = "aws eks update-kubeconfig --region ${var.aws_region} --name ${aws_eks_cluster.main.name}"
 }
 
-output "app_load_balancer_hostname" {
-  description = "EKS Info App ALB 访问地址"
-  value       = try(kubernetes_ingress_v1.eks_info_app.status[0].load_balancer[0].ingress[0].hostname, "ALB 正在创建中...")
-}
-
 output "app_namespace" {
   description = "应用命名空间"
-  value       = kubernetes_namespace.app.metadata[0].name
+  value       = var.app_namespace
 }
 
-output "eks_info_app_url" {
-  description = "EKS Info App 访问 URL"
-  value       = try("http://${kubernetes_ingress_v1.eks_info_app.status[0].load_balancer[0].ingress[0].hostname}", "等待 ALB 创建...")
-}
+# 注意：ALB 地址需要在应用部署后通过 kubectl 获取
+# kubectl get ingress -n rj-webdemo
 
 output "efs_file_system_id" {
   description = "EFS 文件系统 ID"
@@ -60,10 +53,10 @@ output "s3_bucket_arn" {
   value       = aws_s3_bucket.app.arn
 }
 
-output "eks_info_app_role_arn" {
-  description = "EKS Info App IAM 角色 ARN"
-  value       = aws_iam_role.eks_info_app.arn
-}
+# output "eks_info_app_role_arn" {
+#   description = "EKS Info App IAM 角色 ARN"
+#   value       = aws_iam_role.eks_info_app.arn
+# }
 
 output "ecr_repository_url" {
   description = "ECR 仓库 URL"

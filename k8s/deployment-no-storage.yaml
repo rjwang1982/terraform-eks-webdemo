@@ -59,7 +59,7 @@ spec:
             fieldRef:
               fieldPath: spec.nodeName
         - name: S3_BUCKET_NAME
-          value: "rjtest-eks-cluster-20250822-eks-info-app-data"
+          value: "rjtest-eks-cluster-202511171652-eks-info-app-data"
         - name: FLASK_ENV
           value: "production"
         - name: LOG_LEVEL

@@ -252,7 +252,7 @@ confirm_deployment() {
     log_warning "即将开始部署，这将创建以下资源："
     echo "  • VPC 和网络组件（NAT Gateway 等，会产生费用）"
     echo "  • EKS 集群（按小时计费）"
-    echo "  • EC2 实例（t3.medium 节点组）"
+    echo "  • EC2 实例（t4g.medium ARM64 Graviton 节点组）"
     echo "  • Application Load Balancer"
     echo "  • Web 应用（3个副本）"
     echo ""
@@ -459,18 +459,16 @@ smart_deploy_kubernetes_apps() {
     
     log_info "集群信息: $cluster_name (区域: $region, VPC: $vpc_id)"
     
-    # 检查是否已有 Terraform 管理的 Kubernetes 资源
-    local k8s_resources=$(terraform state list | grep -E "(kubernetes|helm)" | wc -l)
-    
+    # 检查是否已有应用 Pod 部署
     cd "$PROJECT_ROOT" || return 1
     
-    if [ "$k8s_resources" -gt 0 ]; then
-        log_info "检测到 Terraform 管理的 Kubernetes 资源，使用 Terraform 部署"
-        # 这种情况下 Terraform 应该已经成功了
+    local existing_pods=$(kubectl get pods -n $app_namespace -l app=rj-py-webdemo --no-headers 2>/dev/null | wc -l)
+    
+    if [ "$existing_pods" -gt 0 ]; then
+        log_info "检测到已部署的应用 Pod ($existing_pods 个)，跳过应用部署"
         return 0
     else
-        log_warning "未检测到 Terraform 管理的 Kubernetes 资源"
-        log_info "启动手动部署模式..."
+        log_info "未检测到应用 Pod，启动手动部署模式..."
         
         # 手动部署模式
         manual_deploy_kubernetes_apps "$app_namespace" "$cluster_name" "$region" "$vpc_id"

@@ -38,7 +38,7 @@ EKS 集群和应用已成功部署到 AWS Global 区域（ap-southeast-1）。
 ### 快速访问
 
 - **应用地址**: http://k8s-rjwebdem-eksinfoa-276a74cf51-1382595953.ap-southeast-1.elb.amazonaws.com
-- **集群名称**: RJtest-eks-cluster-20250822
+- **集群名称**: RJtest-eks-cluster-202511171652
 - **命名空间**: rj-webdemo
 - **区域**: ap-southeast-1
 
@@ -59,7 +59,7 @@ Terraform 配置将创建以下资源：
 - **路由表**: 公有和私有路由表
 
 #### EKS 集群
-- **集群名称**: RJtest-eks-cluster-20250822
+- **集群名称**: RJtest-eks-cluster-202511171652
 - **Kubernetes 版本**: 1.31
 - **节点组**: 
   - 实例类型: t4g.medium (ARM64 Graviton)
@@ -76,7 +76,7 @@ Terraform 配置将创建以下资源：
 ### 存储资源
 
 - **EFS 文件系统**: fs-063d4fdf83f33d7b5（加密的共享文件系统，带挂载目标）
-- **S3 存储桶**: rjtest-eks-cluster-20250822-eks-info-app-data（加密的对象存储，配置生命周期策略）
+- **S3 存储桶**: rjtest-eks-cluster-202511171652-eks-info-app-data（加密的对象存储，配置生命周期策略）
 - **EBS CSI Driver**: 通过 Helm 安装
 - **EFS CSI Driver**: 通过 Helm 安装
 
@@ -202,7 +202,7 @@ terraform apply -var="aws_profile=terraform_0603"
 # 更新 kubeconfig
 aws --profile terraform_0603 eks update-kubeconfig \
   --region ap-southeast-1 \
-  --name RJtest-eks-cluster-20250822
+  --name RJtest-eks-cluster-202511171652
 
 # 验证连接
 kubectl get nodes
@@ -320,7 +320,7 @@ curl http://k8s-rjwebdem-eksinfoa-276a74cf51-1382595953.ap-southeast-1.elb.amazo
 # terraform.tfvars
 aws_profile              = "terraform_0603"
 aws_region              = "ap-southeast-1"
-cluster_name            = "RJtest-eks-cluster-20250822"
+cluster_name            = "RJtest-eks-cluster-202511171652"
 vpc_cidr                = "10.101.0.0/16"
 app_namespace           = "rj-webdemo"
 ssh_key_name            = "RJ-test-Pem-269490040603"
@@ -391,7 +391,7 @@ kubectl scale deployment/eks-info-app --replicas=5 -n rj-webdemo
 **问题描述**: 应用配置使用错误的 S3 存储桶名称
 
 **原始配置**: `eks-info-app-data`  
-**正确配置**: `rjtest-eks-cluster-20250822-eks-info-app-data`
+**正确配置**: `rjtest-eks-cluster-202511171652-eks-info-app-data`
 
 **影响**: S3 功能无法正常工作，日志中重复出现 "S3 存储桶不存在" 错误
 
@@ -507,7 +507,7 @@ kubectl exec -n rj-webdemo -it <pod-name> -- env | grep AWS
 kubectl get deployment eks-info-app -n rj-webdemo -o yaml | grep S3_BUCKET_NAME
 
 # 验证存储桶存在
-aws --profile terraform_0603 s3 ls s3://rjtest-eks-cluster-20250822-eks-info-app-data
+aws --profile terraform_0603 s3 ls s3://rjtest-eks-cluster-202511171652-eks-info-app-data
 
 # 检查应用日志
 kubectl logs -n rj-webdemo -l app=eks-info-app | grep -i s3

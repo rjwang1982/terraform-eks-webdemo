@@ -176,16 +176,29 @@ export AWS_DEFAULT_REGION="ap-southeast-1"
 
 ### 步骤 1: 构建和推送 Docker 镜像
 
+⚠️ **重要**: 必须构建 ARM64 架构镜像，因为 EKS 节点使用 AWS Graviton (ARM64) 处理器。
+
 ```bash
-# 构建 ARM64 镜像并推送到 ECR
-./scripts/build.sh
+# 使用项目提供的构建脚本（推荐）
+cd simple-app
+./build-and-push.sh
 
-# 或者指定标签
-./scripts/build.sh -t v1.0
-
-# 查看帮助
-./scripts/build.sh --help
+# 脚本会自动：
+# 1. 检查 Docker Buildx
+# 2. 创建 ARM64 builder
+# 3. 构建 ARM64 镜像
+# 4. 验证镜像架构
+# 5. 可选推送到 Docker Hub
 ```
+
+**架构验证**：
+```bash
+# 验证镜像是 ARM64
+docker inspect rjwang/rj-py-webdemo:1.0 | grep -i architecture
+# 输出应该是: "Architecture": "arm64"
+```
+
+详细的构建要求请参考：[BUILD_REQUIREMENTS.md](simple-app/BUILD_REQUIREMENTS.md)
 
 ### 步骤 2: 部署集群和应用
 
@@ -434,7 +447,7 @@ Error: getting credentials: decoding stdout: couldn't get version/kind
   ```bash
   aws --profile susermt eks update-kubeconfig \
     --region ap-southeast-1 \
-    --name RJtest-eks-cluster-20250822
+    --name RJtest-eks-cluster-202511171652
   ```
 - 验证 AWS 凭证：
   ```bash
@@ -1008,13 +1021,22 @@ kubectl logs -n kube-system -l app=efs-csi-controller --tail=50
 
 ## 相关文档
 
+### 核心文档
+- [ARM64 架构指南](ARM64_ARCHITECTURE_GUIDE.md) - ⭐ **必读** - ARM64 架构要求和构建指南
 - [部署指南](DEPLOYMENT.md) - 完整的部署流程和说明
+- [故障排除](TROUBLESHOOTING.md) - 常见问题和解决方案
+
+### 构建和开发
+- [构建要求](simple-app/BUILD_REQUIREMENTS.md) - Docker 镜像构建的详细要求
+- [Docker 构建指南](eks-info-app/DOCKER_BUILD_GUIDE.md) - Docker 镜像构建详解
+- [API 文档](eks-info-app/API_DOCUMENTATION.md) - 完整的 API 使用说明
+
+### 项目管理
 - [项目总结](PROJECT_SUMMARY.md) - 项目开发历程和总结
 - [Bug 修复报告](BUGFIX_REPORT.md) - Bug 修复记录
-- [故障排除](TROUBLESHOOTING.md) - 常见问题和解决方案
-- [API 文档](eks-info-app/API_DOCUMENTATION.md) - 完整的 API 使用说明
-- [Docker 构建指南](eks-info-app/DOCKER_BUILD_GUIDE.md) - Docker 镜像构建详解
 - [Kubernetes 资源说明](k8s/README.md) - K8s 资源配置说明
+
+### 规范文档
 - [需求文档](.kiro/specs/eks-info-webapp/requirements.md) - 功能需求规范
 - [设计文档](.kiro/specs/eks-info-webapp/design.md) - 架构设计文档
 - [任务列表](.kiro/specs/eks-info-webapp/tasks.md) - 开发任务清单

@@ -24,7 +24,7 @@
 
 #### 验收标准
 
-1. WHEN 应用启动时，THE EKS_Info_App SHALL 使用正确的 S3 存储桶名称 `rjtest-eks-cluster-20250822-eks-info-app-data`
+1. WHEN 应用启动时，THE EKS_Info_App SHALL 使用正确的 S3 存储桶名称 `rjtest-eks-cluster-202511171652-eks-info-app-data`
 2. WHEN 应用访问 S3 时，THE EKS_Info_App SHALL 不再显示 "S3 存储桶不存在" 错误
 3. WHEN 用户访问 S3 演示页面时，THE EKS_Info_App SHALL 能够成功列出、上传和下载对象
 

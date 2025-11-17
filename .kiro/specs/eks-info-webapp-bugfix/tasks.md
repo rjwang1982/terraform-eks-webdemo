@@ -8,7 +8,7 @@
 
 - [x] 1. 修复 S3 存储桶配置
   - [x] 1.1 更新 deployment-no-storage.yaml 中的 S3_BUCKET_NAME 环境变量
-    - 将 `eks-info-app-data` 改为 `rjtest-eks-cluster-20250822-eks-info-app-data`
+    - 将 `eks-info-app-data` 改为 `rjtest-eks-cluster-202511171652-eks-info-app-data`
     - _需求: 1.1_
   
   - [x] 1.2 应用新的 Deployment 配置
