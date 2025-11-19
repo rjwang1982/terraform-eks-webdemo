@@ -1,0 +1,176 @@
+{% extends "base.html" %}
+
+{% block title %}EBS 演示 - EKS Info WebApp{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>📦 EBS 块存储演示</h1>
+    <p>演示应用如何访问 EBS 卷进行持久化存储</p>
+</div>
+
+<div class="content">
+    <!-- EBS 信息 -->
+    <div class="card">
+        <div class="card-header">ℹ️ EBS 卷信息</div>
+        <div class="card-body" id="ebsInfo">
+            <!-- EBS 信息将通过 JavaScript 加载 -->
+        </div>
+    </div>
+    
+    <!-- 写入数据 -->
+    <div class="card">
+        <div class="card-header">✍️ 写入数据</div>
+        <div class="card-body">
+            <form id="writeForm" onsubmit="writeData(event)">
+                <div class="form-group">
+                    <label for="content">内容</label>
+                    <textarea id="content" class="form-control" rows="3" placeholder="输入要写入的内容..." required></textarea>
+                </div>
+                <button type="submit" class="btn btn-primary">写入到 EBS</button>
+            </form>
+        </div>
+    </div>
+    
+    <!-- 读取数据 -->
+    <div class="card">
+        <div class="card-header">
+            📖 历史记录
+            <button onclick="loadLogs()" class="btn btn-secondary" style="float: right; padding: 5px 15px;">刷新</button>
+        </div>
+        <div class="card-body" id="logsContainer">
+            <!-- 日志记录将通过 JavaScript 加载 -->
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // 作者: RJ.Wang
+    // 邮箱: wangrenjun@gmail.com
+    // 创建时间: 2025-11-14
+    
+    // 加载 EBS 信息
+    async function loadEBSInfo() {
+        try {
+            const data = await apiRequest('/ebs/');
+            displayEBSInfo(data);
+        } catch (error) {
+            console.error('加载 EBS 信息失败:', error);
+        }
+    }
+    
+    // 显示 EBS 信息
+    function displayEBSInfo(data) {
+        const container = document.getElementById('ebsInfo');
+        
+        if (!data.ebs_info) {
+            container.innerHTML = '<p>无法获取 EBS 信息</p>';
+            return;
+        }
+        
+        const info = data.ebs_info;
+        let html = '<table class="table">';
+        html += `<tr><th>挂载路径</th><td>${info.mount_path}</td></tr>`;
+        html += `<tr><th>状态</th><td><span class="status-badge ${info.available ? 'success' : 'error'}">${info.available ? '可用' : '不可用'}</span></td></tr>`;
+        
+        if (info.disk_usage) {
+            const usage = info.disk_usage;
+            const usagePercent = usage.usage_percent || 0;
+            const statusClass = usagePercent > 80 ? 'error' : usagePercent > 60 ? 'warning' : 'success';
+            
+            html += `<tr><th>总容量</th><td>${formatBytes(usage.total_bytes)}</td></tr>`;
+            html += `<tr><th>已使用</th><td>${formatBytes(usage.used_bytes)}</td></tr>`;
+            html += `<tr><th>可用空间</th><td>${formatBytes(usage.available_bytes)}</td></tr>`;
+            html += `<tr><th>使用率</th><td><span class="status-badge ${statusClass}">${formatPercent(usagePercent)}</span></td></tr>`;
+        }
+        
+        if (info.log_file) {
+            html += `<tr><th>日志文件</th><td>${info.log_file.path}</td></tr>`;
+            html += `<tr><th>日志大小</th><td>${formatBytes(info.log_file.size_bytes)}</td></tr>`;
+            html += `<tr><th>日志条数</th><td>${info.log_file.line_count}</td></tr>`;
+        }
+        
+        html += '</table>';
+        
+        if (data.current_pod) {
+            html += '<h4>当前 Pod 信息</h4>';
+            html += '<table class="table">';
+            html += `<tr><th>Pod 名称</th><td>${data.current_pod.name}</td></tr>`;
+            html += `<tr><th>命名空间</th><td>${data.current_pod.namespace}</td></tr>`;
+            html += `<tr><th>节点</th><td>${data.current_pod.node}</td></tr>`;
+            html += '</table>';
+        }
+        
+        container.innerHTML = html;
+        
+        // 加载日志
+        if (data.recent_logs) {
+            displayLogs(data.recent_logs);
+        }
+    }
+    
+    // 写入数据
+    async function writeData(event) {
+        event.preventDefault();
+        
+        const content = document.getElementById('content').value;
+        
+        try {
+            const data = await apiRequest('/ebs/write', {
+                method: 'POST',
+                body: JSON.stringify({ content })
+            });
+            
+            showSuccess('数据写入成功！');
+            document.getElementById('content').value = '';
+            
+            // 重新加载日志
+            loadLogs();
+        } catch (error) {
+            console.error('写入数据失败:', error);
+        }
+    }
+    
+    // 加载日志
+    async function loadLogs() {
+        try {
+            const data = await apiRequest('/ebs/read?limit=50');
+            displayLogs(data.logs);
+        } catch (error) {
+            console.error('加载日志失败:', error);
+        }
+    }
+    
+    // 显示日志
+    function displayLogs(logs) {
+        const container = document.getElementById('logsContainer');
+        
+        if (!logs || logs.length === 0) {
+            container.innerHTML = '<p>暂无记录</p>';
+            return;
+        }
+        
+        let html = '<table class="table">';
+        html += '<thead><tr><th>时间</th><th>类型</th><th>Pod</th><th>内容</th></tr></thead>';
+        html += '<tbody>';
+        
+        logs.forEach(log => {
+            html += '<tr>';
+            html += `<td>${formatTimestamp(log.timestamp)}</td>`;
+            html += `<td><span class="status-badge info">${log.type || 'N/A'}</span></td>`;
+            html += `<td>${log.pod_name || 'N/A'}</td>`;
+            html += `<td>${log.content || log.request_path || 'N/A'}</td>`;
+            html += '</tr>';
+        });
+        
+        html += '</tbody></table>';
+        container.innerHTML = html;
+    }
+    
+    // 页面加载时获取数据
+    document.addEventListener('DOMContentLoaded', () => {
+        loadEBSInfo();
+    });
+</script>
+{% endblock %}

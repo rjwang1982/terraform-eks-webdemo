@@ -1,0 +1,210 @@
+{% extends "base.html" %}
+
+{% block title %}存储概览 - EKS Info WebApp{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>💾 存储系统概览</h1>
+    <p>查看应用使用的所有存储系统</p>
+</div>
+
+<div class="content">
+    <!-- 存储摘要 -->
+    <div class="card">
+        <div class="card-header">📊 存储摘要</div>
+        <div class="card-body" id="storageSummary">
+            <!-- 摘要信息将通过 JavaScript 加载 -->
+        </div>
+    </div>
+    
+    <!-- 挂载点信息 -->
+    <div class="card">
+        <div class="card-header">📂 挂载点信息</div>
+        <div class="card-body" id="mountPoints">
+            <!-- 挂载点信息将通过 JavaScript 加载 -->
+        </div>
+    </div>
+    
+    <!-- 存储详情 -->
+    <div class="card">
+        <div class="card-header">🔍 存储详情</div>
+        <div class="card-body" id="storageDetails">
+            <!-- 存储详情将通过 JavaScript 加载 -->
+        </div>
+    </div>
+    
+    <!-- 导航链接 -->
+    <div class="card">
+        <div class="card-header">🔗 存储演示</div>
+        <div class="card-body" id="storageNavigation">
+            <!-- 导航链接将通过 JavaScript 加载 -->
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // 作者: RJ.Wang
+    // 邮箱: wangrenjun@gmail.com
+    // 创建时间: 2025-11-14
+    
+    // 加载存储信息
+    async function loadStorageInfo() {
+        try {
+            const data = await apiRequest('/storage/');
+            displayStorageInfo(data);
+        } catch (error) {
+            console.error('加载存储信息失败:', error);
+        }
+    }
+    
+    // 显示存储信息
+    function displayStorageInfo(data) {
+        // 显示摘要
+        if (data.summary) {
+            displaySummary(data.summary);
+        }
+        
+        // 显示挂载点
+        if (data.mount_points) {
+            displayMountPoints(data.mount_points);
+        }
+        
+        // 显示存储详情
+        if (data.storage_details) {
+            displayStorageDetails(data.storage_details);
+        }
+        
+        // 显示导航
+        if (data.navigation) {
+            displayNavigation(data.navigation);
+        }
+    }
+    
+    // 显示摘要
+    function displaySummary(summary) {
+        const container = document.getElementById('storageSummary');
+        let html = '<table class="table">';
+        html += `<tr><th>可用存储系统</th><td>${summary.available_storage_count || 0} / ${summary.total_storage_count || 3}</td></tr>`;
+        html += `<tr><th>总挂载点</th><td>${summary.total_mount_points || 0}</td></tr>`;
+        html += '</table>';
+        container.innerHTML = html;
+    }
+    
+    // 显示挂载点
+    function displayMountPoints(mountPoints) {
+        const container = document.getElementById('mountPoints');
+        
+        if (!mountPoints || mountPoints.length === 0) {
+            container.innerHTML = '<p>未找到挂载点</p>';
+            return;
+        }
+        
+        let html = '<table class="table">';
+        html += '<thead><tr><th>挂载路径</th><th>文件系统</th><th>容量</th><th>已用</th><th>可用</th><th>使用率</th></tr></thead>';
+        html += '<tbody>';
+        
+        mountPoints.forEach(mount => {
+            const usagePercent = mount.usage_percent || 0;
+            const statusClass = usagePercent > 80 ? 'error' : usagePercent > 60 ? 'warning' : 'success';
+            
+            html += '<tr>';
+            html += `<td>${mount.mount_point}</td>`;
+            html += `<td>${mount.filesystem_type}</td>`;
+            html += `<td>${formatBytes(mount.total_bytes)}</td>`;
+            html += `<td>${formatBytes(mount.used_bytes)}</td>`;
+            html += `<td>${formatBytes(mount.available_bytes)}</td>`;
+            html += `<td><span class="status-badge ${statusClass}">${formatPercent(usagePercent)}</span></td>`;
+            html += '</tr>';
+        });
+        
+        html += '</tbody></table>';
+        container.innerHTML = html;
+    }
+    
+    // 显示存储详情
+    function displayStorageDetails(details) {
+        const container = document.getElementById('storageDetails');
+        let html = '';
+        
+        // EBS 详情
+        if (details.ebs) {
+            html += '<h3>EBS (Elastic Block Store)</h3>';
+            html += '<table class="table">';
+            html += `<tr><th>状态</th><td><span class="status-badge ${details.ebs.available ? 'success' : 'error'}">${details.ebs.available ? '可用' : '不可用'}</span></td></tr>`;
+            html += `<tr><th>挂载路径</th><td>${details.ebs.mount_path || 'N/A'}</td></tr>`;
+            html += `<tr><th>访问模式</th><td>ReadWriteOnce</td></tr>`;
+            if (details.ebs.error) {
+                html += `<tr><th>错误</th><td class="status-badge error">${details.ebs.error}</td></tr>`;
+            }
+            html += '</table>';
+        }
+        
+        // EFS 详情
+        if (details.efs) {
+            html += '<h3>EFS (Elastic File System)</h3>';
+            html += '<table class="table">';
+            html += `<tr><th>状态</th><td><span class="status-badge ${details.efs.available ? 'success' : 'error'}">${details.efs.available ? '可用' : '不可用'}</span></td></tr>`;
+            html += `<tr><th>挂载路径</th><td>${details.efs.mount_path || 'N/A'}</td></tr>`;
+            html += `<tr><th>访问模式</th><td>ReadWriteMany</td></tr>`;
+            if (details.efs.error) {
+                html += `<tr><th>错误</th><td class="status-badge error">${details.efs.error}</td></tr>`;
+            }
+            html += '</table>';
+        }
+        
+        // S3 详情
+        if (details.s3) {
+            html += '<h3>S3 (Simple Storage Service)</h3>';
+            html += '<table class="table">';
+            html += `<tr><th>状态</th><td><span class="status-badge ${details.s3.available ? 'success' : 'error'}">${details.s3.available ? '可用' : '不可用'}</span></td></tr>`;
+            html += `<tr><th>存储桶</th><td>${details.s3.bucket_name || 'N/A'}</td></tr>`;
+            html += `<tr><th>区域</th><td>${details.s3.region || 'N/A'}</td></tr>`;
+            html += `<tr><th>访问方式</th><td>IRSA (IAM Roles for Service Accounts)</td></tr>`;
+            if (details.s3.error) {
+                html += `<tr><th>错误</th><td class="status-badge error">${details.s3.error}</td></tr>`;
+            }
+            html += '</table>';
+        }
+        
+        container.innerHTML = html;
+    }
+    
+    // 显示导航
+    function displayNavigation(navigation) {
+        const container = document.getElementById('storageNavigation');
+        let html = '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px;">';
+        
+        if (navigation.ebs_available) {
+            html += `
+                <a href="${navigation.ebs_demo}" class="btn btn-primary" style="text-align: center;">
+                    📦 EBS 演示
+                </a>
+            `;
+        }
+        
+        if (navigation.efs_available) {
+            html += `
+                <a href="${navigation.efs_demo}" class="btn btn-primary" style="text-align: center;">
+                    📁 EFS 演示
+                </a>
+            `;
+        }
+        
+        if (navigation.s3_available) {
+            html += `
+                <a href="${navigation.s3_demo}" class="btn btn-primary" style="text-align: center;">
+                    ☁️ S3 演示
+                </a>
+            `;
+        }
+        
+        html += '</div>';
+        container.innerHTML = html;
+    }
+    
+    // 页面加载时获取数据
+    document.addEventListener('DOMContentLoaded', loadStorageInfo);
+</script>
+{% endblock %}

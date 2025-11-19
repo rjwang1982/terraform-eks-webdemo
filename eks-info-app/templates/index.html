@@ -1,0 +1,178 @@
+{% extends "base.html" %}
+
+{% block title %}首页 - EKS Info WebApp{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>🏠 EKS 环境信息</h1>
+    <p>查看当前 EKS 环境的完整信息</p>
+</div>
+
+<div class="content">
+    <div id="environmentInfo">
+        <!-- 环境信息将通过 JavaScript 加载 -->
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // 作者: RJ.Wang
+    // 邮箱: wangrenjun@gmail.com
+    // 创建时间: 2025-11-14
+    
+    // 加载环境信息
+    async function loadEnvironmentInfo() {
+        try {
+            const data = await apiRequest('/');
+            displayEnvironmentInfo(data);
+        } catch (error) {
+            console.error('加载环境信息失败:', error);
+        }
+    }
+    
+    // 显示环境信息
+    function displayEnvironmentInfo(data) {
+        const container = document.getElementById('environmentInfo');
+        
+        let html = '';
+        
+        // 应用信息
+        if (data.app) {
+            html += `
+                <div class="card">
+                    <div class="card-header">📱 应用信息</div>
+                    <div class="card-body">
+                        <table class="table">
+                            <tr><th>应用名称</th><td>${data.app.name}</td></tr>
+                            <tr><th>版本</th><td>${data.app.version}</td></tr>
+                            <tr><th>描述</th><td>${data.app.description}</td></tr>
+                            <tr><th>作者</th><td>${data.app.author}</td></tr>
+                            <tr><th>邮箱</th><td>${data.app.email}</td></tr>
+                        </table>
+                    </div>
+                </div>
+            `;
+        }
+        
+        // Pod 信息
+        if (data.environment && data.environment.pod) {
+            const pod = data.environment.pod;
+            html += `
+                <div class="card">
+                    <div class="card-header">🔷 Pod 信息</div>
+                    <div class="card-body">
+                        <table class="table">
+                            <tr><th>Pod 名称</th><td>${pod.name || 'N/A'}</td></tr>
+                            <tr><th>命名空间</th><td>${pod.namespace || 'N/A'}</td></tr>
+                            <tr><th>Pod IP</th><td>${pod.ip || 'N/A'}</td></tr>
+                            <tr><th>节点名称</th><td>${pod.node_name || 'N/A'}</td></tr>
+                            <tr><th>服务账号</th><td>${pod.service_account || 'N/A'}</td></tr>
+                        </table>
+                    </div>
+                </div>
+            `;
+        }
+        
+        // 集群信息
+        if (data.environment && data.environment.cluster) {
+            const cluster = data.environment.cluster;
+            html += `
+                <div class="card">
+                    <div class="card-header">☸️ Kubernetes 集群信息</div>
+                    <div class="card-body">
+                        <table class="table">
+                            <tr><th>Kubernetes 版本</th><td>${cluster.version || 'N/A'}</td></tr>
+                            <tr><th>API 服务器</th><td>${cluster.api_server || 'N/A'}</td></tr>
+                            <tr><th>集群名称</th><td>${cluster.name || 'N/A'}</td></tr>
+                        </table>
+                    </div>
+                </div>
+            `;
+        }
+        
+        // EC2 实例信息
+        if (data.environment && data.environment.ec2) {
+            const ec2 = data.environment.ec2;
+            html += `
+                <div class="card">
+                    <div class="card-header">🖥️ EC2 实例信息</div>
+                    <div class="card-body">
+                        <table class="table">
+                            <tr><th>实例 ID</th><td>${ec2.instance_id || 'N/A'}</td></tr>
+                            <tr><th>实例类型</th><td>${ec2.instance_type || 'N/A'}</td></tr>
+                            <tr><th>可用区</th><td>${ec2.availability_zone || 'N/A'}</td></tr>
+                            <tr><th>私有 IP</th><td>${ec2.private_ip || 'N/A'}</td></tr>
+                            <tr><th>公有 IP</th><td>${ec2.public_ip || 'N/A'}</td></tr>
+                            <tr><th>区域</th><td>${ec2.region || 'N/A'}</td></tr>
+                        </table>
+                    </div>
+                </div>
+            `;
+        }
+        
+        // 系统架构信息
+        if (data.environment && data.environment.system) {
+            const system = data.environment.system;
+            html += `
+                <div class="card">
+                    <div class="card-header">⚙️ 系统架构信息</div>
+                    <div class="card-body">
+                        <table class="table">
+                            <tr><th>CPU 架构</th><td>${system.architecture || 'N/A'}</td></tr>
+                            <tr><th>处理器</th><td>${system.processor || 'N/A'}</td></tr>
+                            <tr><th>ARM64</th><td>${system.is_arm64 ? '<span class="status-badge success">是</span>' : '<span class="status-badge info">否</span>'}</td></tr>
+                            <tr><th>操作系统</th><td>${system.os || 'N/A'}</td></tr>
+                            <tr><th>Python 版本</th><td>${system.python_version || 'N/A'}</td></tr>
+                        </table>
+                    </div>
+                </div>
+            `;
+        }
+        
+        // 网络架构信息
+        if (data.environment && data.environment.network) {
+            const network = data.environment.network;
+            html += `
+                <div class="card">
+                    <div class="card-header">🌐 网络架构信息</div>
+                    <div class="card-body">
+                        <table class="table">
+                            <tr><th>VPC ID</th><td>${network.vpc_id || 'N/A'}</td></tr>
+                            <tr><th>子网 ID</th><td>${network.subnet_id || 'N/A'}</td></tr>
+                            <tr><th>安全组</th><td>${network.security_groups ? network.security_groups.join(', ') : 'N/A'}</td></tr>
+                            <tr><th>MAC 地址</th><td>${network.mac_address || 'N/A'}</td></tr>
+                        </table>
+                    </div>
+                </div>
+            `;
+        }
+        
+        // 环境变量
+        if (data.environment && data.environment.environment_variables) {
+            const envVars = data.environment.environment_variables;
+            html += `
+                <div class="card">
+                    <div class="card-header">📋 环境变量</div>
+                    <div class="card-body">
+                        <table class="table">
+            `;
+            
+            for (const [key, value] of Object.entries(envVars)) {
+                html += `<tr><th>${key}</th><td>${value}</td></tr>`;
+            }
+            
+            html += `
+                        </table>
+                    </div>
+                </div>
+            `;
+        }
+        
+        container.innerHTML = html;
+    }
+    
+    // 页面加载时获取数据
+    document.addEventListener('DOMContentLoaded', loadEnvironmentInfo);
+</script>
+{% endblock %}

@@ -1,0 +1,73 @@
+# Kubernetes HorizontalPodAutoscaler 配置
+# 作者: RJ.Wang
+# 邮箱: wangrenjun@gmail.com
+# 创建时间: 2025-11-14
+
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: eks-info-app-hpa
+  namespace: rj-webdemo
+  labels:
+    app: eks-info-app
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: eks-info-app
+  
+  # 扩展策略：最小 3 个副本，最大 10 个副本
+  minReplicas: 3
+  maxReplicas: 10
+  
+  # 指标配置
+  metrics:
+  # CPU 使用率指标
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  
+  # 内存使用率指标
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+  
+  # 扩展行为配置
+  behavior:
+    # 扩容行为
+    scaleUp:
+      # 稳定窗口：30 秒
+      stabilizationWindowSeconds: 30
+      policies:
+      # 每 30 秒最多增加 50% 的 Pod
+      - type: Percent
+        value: 50
+        periodSeconds: 30
+      # 每 30 秒最多增加 2 个 Pod
+      - type: Pods
+        value: 2
+        periodSeconds: 30
+      # 选择变化最大的策略
+      selectPolicy: Max
+    
+    # 缩容行为
+    scaleDown:
+      # 稳定窗口：300 秒（5 分钟）
+      stabilizationWindowSeconds: 300
+      policies:
+      # 每 60 秒最多减少 10% 的 Pod
+      - type: Percent
+        value: 10
+        periodSeconds: 60
+      # 每 60 秒最多减少 1 个 Pod
+      - type: Pods
+        value: 1
+        periodSeconds: 60
+      # 选择变化最小的策略
+      selectPolicy: Min

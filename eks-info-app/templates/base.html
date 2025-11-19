@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}EKS Info WebApp{% endblock %}</title>
+    <style>
+        /* 作者: RJ.Wang */
+        /* 邮箱: wangrenjun@gmail.com */
+        /* 创建时间: 2025-11-14 */
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background-color: #f5f5f5;
+        }
+        
+        /* 导航栏 */
+        .navbar {
+            background-color: #232f3e;
+            color: white;
+            padding: 0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+        }
+        
+        .navbar-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 20px;
+        }
+        
+        .navbar-brand {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #ff9900;
+            text-decoration: none;
+            padding: 15px 0;
+        }
+        
+        .navbar-menu {
+            display: flex;
+            list-style: none;
+            gap: 5px;
+        }
+        
+        .navbar-menu li a {
+            display: block;
+            color: white;
+            text-decoration: none;
+            padding: 15px 20px;
+            transition: background-color 0.3s;
+        }
+        
+        .navbar-menu li a:hover {
+            background-color: #37475a;
+        }
+        
+        .navbar-menu li a.active {
+            background-color: #ff9900;
+            color: #232f3e;
+        }
+        
+        /* 移动端菜单按钮 */
+        .navbar-toggle {
+            display: none;
+            background: none;
+            border: none;
+            color: white;
+            font-size: 1.5rem;
+            cursor: pointer;
+            padding: 10px;
+        }
+        
+        /* 主容器 */
+        .container {
+            max-width: 1400px;
+            margin: 20px auto;
+            padding: 0 20px;
+        }
+        
+        /* 页面标题 */
+        .page-header {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        
+        .page-header h1 {
+            color: #232f3e;
+            font-size: 2rem;
+            margin-bottom: 10px;
+        }
+        
+        .page-header p {
+            color: #666;
+            font-size: 1.1rem;
+        }
+        
+        /* 内容区域 */
+        .content {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        /* 加载指示器 */
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 40px;
+        }
+        
+        .loading.active {
+            display: block;
+        }
+        
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #ff9900;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        /* 错误消息 */
+        .error-message {
+            background-color: #f8d7da;
+            color: #721c24;
+            padding: 15px;
+            border-radius: 4px;
+            border: 1px solid #f5c6cb;
+            margin-bottom: 20px;
+            display: none;
+        }
+        
+        .error-message.active {
+            display: block;
+        }
+        
+        .error-message strong {
+            display: block;
+            margin-bottom: 5px;
+        }
+        
+        /* 成功消息 */
+        .success-message {
+            background-color: #d4edda;
+            color: #155724;
+            padding: 15px;
+            border-radius: 4px;
+            border: 1px solid #c3e6cb;
+            margin-bottom: 20px;
+            display: none;
+        }
+        
+        .success-message.active {
+            display: block;
+        }
+        
+        /* 警告消息 */
+        .warning-message {
+            background-color: #fff3cd;
+            color: #856404;
+            padding: 15px;
+            border-radius: 4px;
+            border: 1px solid #ffeaa7;
+            margin-bottom: 20px;
+            display: none;
+        }
+        
+        .warning-message.active {
+            display: block;
+        }
+        
+        /* 状态标签 */
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+        
+        .status-badge.success {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        
+        .status-badge.error {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+        
+        .status-badge.warning {
+            background-color: #fff3cd;
+            color: #856404;
+        }
+        
+        .status-badge.info {
+            background-color: #d1ecf1;
+            color: #0c5460;
+        }
+        
+        /* 按钮 */
+        .btn {
+            display: inline-block;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            font-size: 1rem;
+            cursor: pointer;
+            text-decoration: none;
+            transition: all 0.3s;
+        }
+        
+        .btn-primary {
+            background-color: #ff9900;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background-color: #ec7211;
+        }
+        
+        .btn-secondary {
+            background-color: #6c757d;
+            color: white;
+        }
+        
+        .btn-secondary:hover {
+            background-color: #5a6268;
+        }
+        
+        .btn-success {
+            background-color: #28a745;
+            color: white;
+        }
+        
+        .btn-success:hover {
+            background-color: #218838;
+        }
+        
+        .btn-danger {
+            background-color: #dc3545;
+            color: white;
+        }
+        
+        .btn-danger:hover {
+            background-color: #c82333;
+        }
+        
+        /* 表单 */
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .form-control {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 1rem;
+        }
+        
+        .form-control:focus {
+            outline: none;
+            border-color: #ff9900;
+            box-shadow: 0 0 0 3px rgba(255, 153, 0, 0.1);
+        }
+        
+        /* 卡片 */
+        .card {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+            overflow: hidden;
+        }
+        
+        .card-header {
+            background-color: #f8f9fa;
+            padding: 15px 20px;
+            border-bottom: 1px solid #dee2e6;
+            font-weight: 600;
+        }
+        
+        .card-body {
+            padding: 20px;
+        }
+        
+        /* 表格 */
+        .table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+        
+        .table th,
+        .table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #dee2e6;
+        }
+        
+        .table th {
+            background-color: #f8f9fa;
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .table tr:hover {
+            background-color: #f8f9fa;
+        }
+        
+        /* 页脚 */
+        .footer {
+            background-color: #232f3e;
+            color: white;
+            text-align: center;
+            padding: 20px;
+            margin-top: 40px;
+        }
+        
+        .footer p {
+            margin: 5px 0;
+        }
+        
+        /* 响应式设计 */
+        @media (max-width: 768px) {
+            .navbar-toggle {
+                display: block;
+            }
+            
+            .navbar-menu {
+                display: none;
+                flex-direction: column;
+                position: absolute;
+                top: 100%;
+                left: 0;
+                right: 0;
+                background-color: #232f3e;
+                box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            }
+            
+            .navbar-menu.active {
+                display: flex;
+            }
+            
+            .navbar-menu li a {
+                padding: 15px 20px;
+                border-top: 1px solid #37475a;
+            }
+            
+            .page-header h1 {
+                font-size: 1.5rem;
+            }
+            
+            .container {
+                padding: 0 10px;
+            }
+            
+            .content {
+                padding: 20px;
+            }
+            
+            .table {
+                font-size: 0.9rem;
+            }
+            
+            .table th,
+            .table td {
+                padding: 8px;
+            }
+        }
+    </style>
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    <!-- 导航栏 -->
+    <nav class="navbar">
+        <div class="navbar-container">
+            <a href="/" class="navbar-brand">EKS Info WebApp</a>
+            <button class="navbar-toggle" onclick="toggleMenu()">☰</button>
+            <ul class="navbar-menu" id="navbarMenu">
+                <li><a href="/" class="{% if request.path == '/' %}active{% endif %}">首页</a></li>
+                <li><a href="/storage" class="{% if request.path.startswith('/storage') %}active{% endif %}">存储概览</a></li>
+                <li><a href="/ebs" class="{% if request.path.startswith('/ebs') %}active{% endif %}">EBS</a></li>
+                <li><a href="/efs" class="{% if request.path.startswith('/efs') %}active{% endif %}">EFS</a></li>
+                <li><a href="/s3" class="{% if request.path.startswith('/s3') %}active{% endif %}">S3</a></li>
+                <li><a href="/network" class="{% if request.path.startswith('/network') %}active{% endif %}">网络</a></li>
+                <li><a href="/resources" class="{% if request.path.startswith('/resources') %}active{% endif %}">资源</a></li>
+                <li><a href="/stress" class="{% if request.path.startswith('/stress') %}active{% endif %}">压力测试</a></li>
+                <li><a href="/scaling" class="{% if request.path.startswith('/scaling') %}active{% endif %}">扩展监控</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <!-- 主容器 -->
+    <div class="container">
+        <!-- 加载指示器 -->
+        <div class="loading" id="loadingIndicator">
+            <div class="spinner"></div>
+            <p>加载中...</p>
+        </div>
+        
+        <!-- 错误消息 -->
+        <div class="error-message" id="errorMessage">
+            <strong>错误</strong>
+            <span id="errorText"></span>
+        </div>
+        
+        <!-- 成功消息 -->
+        <div class="success-message" id="successMessage">
+            <span id="successText"></span>
+        </div>
+        
+        <!-- 警告消息 -->
+        <div class="warning-message" id="warningMessage">
+            <span id="warningText"></span>
+        </div>
+        
+        {% block content %}{% endblock %}
+    </div>
+
+    <!-- 页脚 -->
+    <footer class="footer">
+        <p>&copy; 2025 EKS Info WebApp</p>
+        <p>作者: RJ.Wang | 邮箱: wangrenjun@gmail.com</p>
+    </footer>
+
+    <!-- 基础 JavaScript -->
+    <script>
+        // 作者: RJ.Wang
+        // 邮箱: wangrenjun@gmail.com
+        // 创建时间: 2025-11-14
+        
+        // 切换移动端菜单
+        function toggleMenu() {
+            const menu = document.getElementById('navbarMenu');
+            menu.classList.toggle('active');
+        }
+        
+        // 显示加载指示器
+        function showLoading() {
+            document.getElementById('loadingIndicator').classList.add('active');
+        }
+        
+        // 隐藏加载指示器
+        function hideLoading() {
+            document.getElementById('loadingIndicator').classList.remove('active');
+        }
+        
+        // 显示错误消息
+        function showError(message) {
+            const errorDiv = document.getElementById('errorMessage');
+            const errorText = document.getElementById('errorText');
+            errorText.textContent = message;
+            errorDiv.classList.add('active');
+            
+            // 5秒后自动隐藏
+            setTimeout(() => {
+                hideError();
+            }, 5000);
+        }
+        
+        // 隐藏错误消息
+        function hideError() {
+            document.getElementById('errorMessage').classList.remove('active');
+        }
+        
+        // 显示成功消息
+        function showSuccess(message) {
+            const successDiv = document.getElementById('successMessage');
+            const successText = document.getElementById('successText');
+            successText.textContent = message;
+            successDiv.classList.add('active');
+            
+            // 3秒后自动隐藏
+            setTimeout(() => {
+                hideSuccess();
+            }, 3000);
+        }
+        
+        // 隐藏成功消息
+        function hideSuccess() {
+            document.getElementById('successMessage').classList.remove('active');
+        }
+        
+        // 显示警告消息
+        function showWarning(message) {
+            const warningDiv = document.getElementById('warningMessage');
+            const warningText = document.getElementById('warningText');
+            warningText.textContent = message;
+            warningDiv.classList.add('active');
+            
+            // 4秒后自动隐藏
+            setTimeout(() => {
+                hideWarning();
+            }, 4000);
+        }
+        
+        // 隐藏警告消息
+        function hideWarning() {
+            document.getElementById('warningMessage').classList.remove('active');
+        }
+        
+        // 格式化时间戳
+        function formatTimestamp(timestamp) {
+            const date = new Date(timestamp);
+            return date.toLocaleString('zh-CN', {
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit'
+            });
+        }
+        
+        // 格式化字节大小
+        function formatBytes(bytes) {
+            if (bytes === 0) return '0 B';
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+        }
+        
+        // 格式化百分比
+        function formatPercent(value) {
+            return Math.round(value * 100) / 100 + '%';
+        }
+        
+        // 获取状态颜色类
+        function getStatusClass(status) {
+            const statusLower = status.toLowerCase();
+            if (statusLower === 'running' || statusLower === 'ready' || statusLower === 'healthy' || statusLower === 'ok') {
+                return 'success';
+            } else if (statusLower === 'pending' || statusLower === 'warning') {
+                return 'warning';
+            } else if (statusLower === 'failed' || statusLower === 'error' || statusLower === 'unhealthy') {
+                return 'error';
+            } else {
+                return 'info';
+            }
+        }
+        
+        // API 请求辅助函数
+        async function apiRequest(url, options = {}) {
+            try {
+                showLoading();
+                const response = await fetch(url, {
+                    ...options,
+                    headers: {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json',
+                        ...options.headers
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(data.message || data.error || '请求失败');
+                }
+                
+                return data;
+            } catch (error) {
+                showError(error.message);
+                throw error;
+            } finally {
+                hideLoading();
+            }
+        }
+    </script>
+    
+    <!-- 应用 JavaScript -->
+    <script src="/static/js/app.js"></script>
+    
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

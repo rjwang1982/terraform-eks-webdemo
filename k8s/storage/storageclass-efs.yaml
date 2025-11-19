@@ -1,0 +1,25 @@
+# Kubernetes StorageClass 配置（EFS）
+# 作者: RJ.Wang
+# 邮箱: wangrenjun@gmail.com
+# 创建时间: 2025-11-14
+
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: efs-sc
+  labels:
+    app: eks-info-app
+provisioner: efs.csi.aws.com
+parameters:
+  # 需要替换为实际的 EFS 文件系统 ID
+  fileSystemId: fs-xxxxxxxxx
+  provisioningMode: efs-ap
+  directoryPerms: "700"
+  gidRangeStart: "1000"
+  gidRangeEnd: "2000"
+  basePath: "/eks-info-app"
+mountOptions:
+  - tls
+  - iam
+volumeBindingMode: Immediate
+reclaimPolicy: Retain

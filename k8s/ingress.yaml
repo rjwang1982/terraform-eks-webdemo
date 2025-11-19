@@ -1,0 +1,37 @@
+# Kubernetes Ingress 配置（ALB）
+# 作者: RJ.Wang
+# 邮箱: wangrenjun@gmail.com
+# 创建时间: 2025-11-14
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: eks-info-app-ingress
+  namespace: rj-webdemo
+  labels:
+    app: eks-info-app
+  annotations:
+    # ALB Ingress Controller 注解
+    kubernetes.io/ingress.class: alb
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}]'
+    alb.ingress.kubernetes.io/healthcheck-path: /health
+    alb.ingress.kubernetes.io/healthcheck-interval-seconds: '30'
+    alb.ingress.kubernetes.io/healthcheck-timeout-seconds: '5'
+    alb.ingress.kubernetes.io/healthy-threshold-count: '2'
+    alb.ingress.kubernetes.io/unhealthy-threshold-count: '2'
+    alb.ingress.kubernetes.io/success-codes: '200'
+    # 标签
+    alb.ingress.kubernetes.io/tags: Environment=demo,Application=eks-info-app,ManagedBy=kubernetes
+spec:
+  rules:
+    - http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: eks-info-app-service
+                port:
+                  number: 80

@@ -46,3 +46,9 @@ variable "app_namespace" {
   type        = string
   default     = "rj-webdemo"
 }
+
+variable "eks_info_app_image_tag" {
+  description = "EKS Info App Docker 镜像标签"
+  type        = string
+  default     = "latest"
+}
