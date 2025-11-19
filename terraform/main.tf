@@ -83,7 +83,7 @@ resource "aws_subnet" "private" {
 resource "aws_eip" "nat" {
   count = 3
 
-  domain = "vpc"
+  domain     = "vpc"
   depends_on = [aws_internet_gateway.main]
 
   tags = {
@@ -167,9 +167,9 @@ resource "aws_iam_role" "eks_cluster_role" {
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
-      Effect = "Allow"
+      Effect    = "Allow"
       Principal = { Service = "eks.amazonaws.com" }
-      Action = "sts:AssumeRole"
+      Action    = "sts:AssumeRole"
     }]
   })
 
@@ -193,9 +193,9 @@ resource "aws_iam_role" "eks_node_role" {
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
-      Effect = "Allow"
+      Effect    = "Allow"
       Principal = { Service = "ec2.amazonaws.com" }
-      Action = "sts:AssumeRole"
+      Action    = "sts:AssumeRole"
     }]
   })
 
@@ -317,8 +317,10 @@ resource "aws_eks_node_group" "main" {
   node_role_arn   = aws_iam_role.eks_node_role.arn
   subnet_ids      = aws_subnet.private[*].id
 
-  instance_types = ["t3.medium"]
+  instance_types = ["t4g.medium"] # ARM64 Graviton4 架构（最新）
   capacity_type  = "ON_DEMAND"
+
+  ami_type = "AL2023_ARM_64_STANDARD" # Amazon Linux 2023 ARM64
 
   scaling_config {
     desired_size = 2
@@ -347,4 +349,142 @@ resource "aws_eks_node_group" "main" {
     Owner       = "RJ.Wang"
     Environment = "Sandbox"
   }
+}
+
+# --------------------------
+# EFS 文件系统
+# --------------------------
+
+# EFS 安全组
+resource "aws_security_group" "efs" {
+  name        = "${var.cluster_name}-efs-sg"
+  description = "Security group for EFS mount targets"
+  vpc_id      = aws_vpc.main.id
+
+  ingress {
+    description     = "NFS from EKS nodes"
+    from_port       = 2049
+    to_port         = 2049
+    protocol        = "tcp"
+    security_groups = [aws_security_group.eks_nodes.id]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name        = "${var.cluster_name}-efs-sg"
+    BillingCode = "RJ"
+    Owner       = "RJ.Wang"
+    Environment = "Sandbox"
+  }
+}
+
+# EFS 文件系统
+resource "aws_efs_file_system" "app" {
+  creation_token = "${var.cluster_name}-eks-info-app"
+  encrypted      = true
+
+  performance_mode = "generalPurpose"
+  throughput_mode  = "bursting"
+
+  lifecycle_policy {
+    transition_to_ia = "AFTER_30_DAYS"
+  }
+
+  tags = {
+    Name        = "${var.cluster_name}-eks-info-app-efs"
+    Application = "eks-info-app"
+    BillingCode = "RJ"
+    Owner       = "RJ.Wang"
+    Environment = "Sandbox"
+  }
+}
+
+# EFS 挂载目标 - 每个私有子网
+resource "aws_efs_mount_target" "app" {
+  count = 3
+
+  file_system_id  = aws_efs_file_system.app.id
+  subnet_id       = aws_subnet.private[count.index].id
+  security_groups = [aws_security_group.efs.id]
+}
+
+# --------------------------
+# S3 存储桶
+# --------------------------
+
+# S3 存储桶
+resource "aws_s3_bucket" "app" {
+  bucket = lower("${var.cluster_name}-eks-info-app-data")
+
+  tags = {
+    Name        = "${var.cluster_name}-eks-info-app-data"
+    Application = "eks-info-app"
+    BillingCode = "RJ"
+    Owner       = "RJ.Wang"
+    Environment = "Sandbox"
+  }
+}
+
+# S3 存储桶加密
+resource "aws_s3_bucket_server_side_encryption_configuration" "app" {
+  bucket = aws_s3_bucket.app.id
+
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "AES256"
+    }
+  }
+}
+
+# S3 存储桶版本控制
+resource "aws_s3_bucket_versioning" "app" {
+  bucket = aws_s3_bucket.app.id
+
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+# S3 存储桶生命周期策略
+resource "aws_s3_bucket_lifecycle_configuration" "app" {
+  bucket = aws_s3_bucket.app.id
+
+  rule {
+    id     = "delete-old-versions"
+    status = "Enabled"
+
+    filter {}
+
+    noncurrent_version_expiration {
+      noncurrent_days = 30
+    }
+  }
+
+  rule {
+    id     = "transition-to-ia"
+    status = "Enabled"
+
+    filter {}
+
+    transition {
+      days          = 90
+      storage_class = "STANDARD_IA"
+    }
+  }
+}
+
+# S3 存储桶公共访问阻止
+resource "aws_s3_bucket_public_access_block" "app" {
+  bucket = aws_s3_bucket.app.id
+
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
 }

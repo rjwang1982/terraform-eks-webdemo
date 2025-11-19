@@ -1,0 +1,245 @@
+{% extends "base.html" %}
+
+{% block title %}Kubernetes 资源 - EKS Info WebApp{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>☸️ Kubernetes 资源信息</h1>
+    <p>查看集群资源使用情况</p>
+    <button onclick="loadAllResources()" class="btn btn-primary" style="margin-top: 10px;">刷新</button>
+</div>
+
+<div class="content" id="resourcesInfo">
+    <!-- 资源信息将通过 JavaScript 加载 -->
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // 作者: RJ.Wang
+    // 邮箱: wangrenjun@gmail.com
+    // 创建时间: 2025-11-14
+    
+    // 加载所有资源信息
+    async function loadAllResources() {
+        try {
+            const data = await apiRequest('/resources/');
+            displayResourcesInfo(data);
+        } catch (error) {
+            console.error('加载资源信息失败:', error);
+        }
+    }
+    
+    // 显示资源信息
+    function displayResourcesInfo(data) {
+        const container = document.getElementById('resourcesInfo');
+        let html = '';
+        
+        // Pods 信息
+        if (data.pods && data.pods.length > 0) {
+            html += `
+                <div class="card">
+                    <div class="card-header">🔷 Pods (${data.pods.length})</div>
+                    <div class="card-body">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>名称</th>
+                                    <th>状态</th>
+                                    <th>节点</th>
+                                    <th>IP</th>
+                                    <th>重启次数</th>
+                                    <th>创建时间</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+            `;
+            
+            data.pods.forEach(pod => {
+                html += `
+                    <tr>
+                        <td>${pod.name}</td>
+                        <td><span class="status-badge ${getStatusClass(pod.status)}">${pod.status}</span></td>
+                        <td>${pod.node_name || 'N/A'}</td>
+                        <td>${pod.pod_ip || 'N/A'}</td>
+                        <td>${pod.restart_count || 0}</td>
+                        <td>${formatTimestamp(pod.created_at)}</td>
+                    </tr>
+                `;
+            });
+            
+            html += `
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            `;
+        }
+        
+        // Services 信息
+        if (data.services && data.services.length > 0) {
+            html += `
+                <div class="card">
+                    <div class="card-header">🔌 Services (${data.services.length})</div>
+                    <div class="card-body">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>名称</th>
+                                    <th>类型</th>
+                                    <th>Cluster IP</th>
+                                    <th>端口</th>
+                                    <th>创建时间</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+            `;
+            
+            data.services.forEach(svc => {
+                const ports = svc.ports ? svc.ports.map(p => `${p.port}:${p.target_port}/${p.protocol}`).join(', ') : 'N/A';
+                html += `
+                    <tr>
+                        <td>${svc.name}</td>
+                        <td><span class="status-badge info">${svc.type}</span></td>
+                        <td>${svc.cluster_ip || 'N/A'}</td>
+                        <td>${ports}</td>
+                        <td>${formatTimestamp(svc.created_at)}</td>
+                    </tr>
+                `;
+            });
+            
+            html += `
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            `;
+        }
+        
+        // Deployments 信息
+        if (data.deployments && data.deployments.length > 0) {
+            html += `
+                <div class="card">
+                    <div class="card-header">🚀 Deployments (${data.deployments.length})</div>
+                    <div class="card-body">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>名称</th>
+                                    <th>副本数</th>
+                                    <th>可用副本</th>
+                                    <th>镜像</th>
+                                    <th>创建时间</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+            `;
+            
+            data.deployments.forEach(deploy => {
+                const replicaStatus = deploy.available_replicas === deploy.replicas ? 'success' : 'warning';
+                html += `
+                    <tr>
+                        <td>${deploy.name}</td>
+                        <td>${deploy.replicas || 0}</td>
+                        <td><span class="status-badge ${replicaStatus}">${deploy.available_replicas || 0}</span></td>
+                        <td>${deploy.image || 'N/A'}</td>
+                        <td>${formatTimestamp(deploy.created_at)}</td>
+                    </tr>
+                `;
+            });
+            
+            html += `
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            `;
+        }
+        
+        // Nodes 信息
+        if (data.nodes && data.nodes.length > 0) {
+            html += `
+                <div class="card">
+                    <div class="card-header">🖥️ Nodes (${data.nodes.length})</div>
+                    <div class="card-body">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>名称</th>
+                                    <th>状态</th>
+                                    <th>角色</th>
+                                    <th>CPU</th>
+                                    <th>内存</th>
+                                    <th>Pods</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+            `;
+            
+            data.nodes.forEach(node => {
+                html += `
+                    <tr>
+                        <td>${node.name}</td>
+                        <td><span class="status-badge ${getStatusClass(node.status)}">${node.status}</span></td>
+                        <td>${node.role || 'worker'}</td>
+                        <td>${node.cpu_capacity || 'N/A'}</td>
+                        <td>${node.memory_capacity || 'N/A'}</td>
+                        <td>${node.pod_count || 0} / ${node.pod_capacity || 'N/A'}</td>
+                    </tr>
+                `;
+            });
+            
+            html += `
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            `;
+        }
+        
+        // PVCs 信息
+        if (data.pvcs && data.pvcs.length > 0) {
+            html += `
+                <div class="card">
+                    <div class="card-header">💾 Persistent Volume Claims (${data.pvcs.length})</div>
+                    <div class="card-body">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>名称</th>
+                                    <th>状态</th>
+                                    <th>容量</th>
+                                    <th>访问模式</th>
+                                    <th>存储类</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+            `;
+            
+            data.pvcs.forEach(pvc => {
+                html += `
+                    <tr>
+                        <td>${pvc.name}</td>
+                        <td><span class="status-badge ${getStatusClass(pvc.status)}">${pvc.status}</span></td>
+                        <td>${pvc.capacity || 'N/A'}</td>
+                        <td>${pvc.access_modes ? pvc.access_modes.join(', ') : 'N/A'}</td>
+                        <td>${pvc.storage_class || 'N/A'}</td>
+                    </tr>
+                `;
+            });
+            
+            html += `
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            `;
+        }
+        
+        container.innerHTML = html;
+    }
+    
+    // 页面加载时获取数据
+    document.addEventListener('DOMContentLoaded', loadAllResources);
+</script>
+{% endblock %}

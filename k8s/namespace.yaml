@@ -1,0 +1,12 @@
+# Kubernetes Namespace 配置
+# 作者: RJ.Wang
+# 邮箱: wangrenjun@gmail.com
+# 创建时间: 2025-11-14
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: rj-webdemo
+  labels:
+    name: rj-webdemo
+    app: eks-info-app

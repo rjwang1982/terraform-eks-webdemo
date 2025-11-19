@@ -1,0 +1,203 @@
+{% extends "base.html" %}
+
+{% block title %}EFS 演示 - EKS Info WebApp{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>📁 EFS 共享文件系统演示</h1>
+    <p>演示多个 Pod 如何共享访问 EFS 文件系统</p>
+</div>
+
+<div class="content">
+    <!-- EFS 信息 -->
+    <div class="card">
+        <div class="card-header">ℹ️ EFS 文件系统信息</div>
+        <div class="card-body" id="efsInfo">
+            <!-- EFS 信息将通过 JavaScript 加载 -->
+        </div>
+    </div>
+    
+    <!-- 写入文件 -->
+    <div class="card">
+        <div class="card-header">✍️ 写入文件</div>
+        <div class="card-body">
+            <form id="writeForm" onsubmit="writeFile(event)">
+                <div class="form-group">
+                    <label for="content">内容</label>
+                    <textarea id="content" class="form-control" rows="3" placeholder="输入要写入的内容..." required></textarea>
+                </div>
+                <button type="submit" class="btn btn-primary">写入到 EFS</button>
+            </form>
+        </div>
+    </div>
+    
+    <!-- 文件列表 -->
+    <div class="card">
+        <div class="card-header">
+            📂 共享文件列表
+            <button onclick="loadFiles()" class="btn btn-secondary" style="float: right; padding: 5px 15px;">刷新</button>
+        </div>
+        <div class="card-body" id="filesContainer">
+            <!-- 文件列表将通过 JavaScript 加载 -->
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // 作者: RJ.Wang
+    // 邮箱: wangrenjun@gmail.com
+    // 创建时间: 2025-11-14
+    
+    // 加载 EFS 信息
+    async function loadEFSInfo() {
+        try {
+            const data = await apiRequest('/efs/');
+            displayEFSInfo(data);
+        } catch (error) {
+            console.error('加载 EFS 信息失败:', error);
+        }
+    }
+    
+    // 显示 EFS 信息
+    function displayEFSInfo(data) {
+        const container = document.getElementById('efsInfo');
+        
+        if (!data.efs_info) {
+            container.innerHTML = '<p>无法获取 EFS 信息</p>';
+            return;
+        }
+        
+        const info = data.efs_info;
+        let html = '<table class="table">';
+        html += `<tr><th>挂载路径</th><td>${info.mount_path}</td></tr>`;
+        html += `<tr><th>状态</th><td><span class="status-badge ${info.available ? 'success' : 'error'}">${info.available ? '可用' : '不可用'}</span></td></tr>`;
+        
+        if (info.filesystem_usage) {
+            const usage = info.filesystem_usage;
+            html += `<tr><th>总容量</th><td>${formatBytes(usage.total_bytes)}</td></tr>`;
+            html += `<tr><th>已使用</th><td>${formatBytes(usage.used_bytes)}</td></tr>`;
+            html += `<tr><th>可用空间</th><td>${formatBytes(usage.available_bytes)}</td></tr>`;
+            html += `<tr><th>使用率</th><td>${formatPercent(usage.usage_percent)}</td></tr>`;
+        }
+        
+        html += '</table>';
+        
+        if (data.current_pod) {
+            html += '<h4>当前处理请求的 Pod</h4>';
+            html += '<table class="table">';
+            html += `<tr><th>Pod 名称</th><td>${data.current_pod.name}</td></tr>`;
+            html += `<tr><th>命名空间</th><td>${data.current_pod.namespace}</td></tr>`;
+            html += `<tr><th>节点</th><td>${data.current_pod.node}</td></tr>`;
+            html += '</table>';
+            html += '<p class="status-badge info">💡 刷新页面可能会看到不同的 Pod 处理请求，但都能访问相同的 EFS 数据</p>';
+        }
+        
+        container.innerHTML = html;
+        
+        // 加载文件列表
+        if (data.files) {
+            displayFiles(data.files);
+        }
+    }
+    
+    // 写入文件
+    async function writeFile(event) {
+        event.preventDefault();
+        
+        const content = document.getElementById('content').value;
+        
+        try {
+            const data = await apiRequest('/efs/write', {
+                method: 'POST',
+                body: JSON.stringify({ content })
+            });
+            
+            showSuccess('文件写入成功！');
+            document.getElementById('content').value = '';
+            
+            // 重新加载文件列表
+            loadFiles();
+        } catch (error) {
+            console.error('写入文件失败:', error);
+        }
+    }
+    
+    // 加载文件列表
+    async function loadFiles() {
+        try {
+            const data = await apiRequest('/efs/list');
+            displayFiles(data.files);
+        } catch (error) {
+            console.error('加载文件列表失败:', error);
+        }
+    }
+    
+    // 显示文件列表
+    function displayFiles(files) {
+        const container = document.getElementById('filesContainer');
+        
+        if (!files || files.length === 0) {
+            container.innerHTML = '<p>暂无文件</p>';
+            return;
+        }
+        
+        let html = '<table class="table">';
+        html += '<thead><tr><th>文件名</th><th>创建时间</th><th>创建者 Pod</th><th>大小</th><th>操作</th></tr></thead>';
+        html += '<tbody>';
+        
+        files.forEach(file => {
+            html += '<tr>';
+            html += `<td>${file.filename}</td>`;
+            html += `<td>${formatTimestamp(file.created_at)}</td>`;
+            html += `<td>${file.created_by_pod}</td>`;
+            html += `<td>${formatBytes(file.size_bytes)}</td>`;
+            html += `<td>
+                <button onclick="readFile('${file.filename}')" class="btn btn-secondary" style="padding: 5px 10px; margin-right: 5px;">查看</button>
+                <button onclick="deleteFile('${file.filename}')" class="btn btn-danger" style="padding: 5px 10px;">删除</button>
+            </td>`;
+            html += '</tr>';
+        });
+        
+        html += '</tbody></table>';
+        container.innerHTML = html;
+    }
+    
+    // 读取文件
+    async function readFile(filename) {
+        try {
+            const data = await apiRequest(`/efs/read/${encodeURIComponent(filename)}`);
+            
+            if (data.content) {
+                alert(`文件内容:\n\n${data.content}\n\n创建者: ${data.metadata.created_by_pod}\n创建时间: ${formatTimestamp(data.metadata.created_at)}`);
+            }
+        } catch (error) {
+            console.error('读取文件失败:', error);
+        }
+    }
+    
+    // 删除文件
+    async function deleteFile(filename) {
+        if (!confirm(`确定要删除文件 "${filename}" 吗？`)) {
+            return;
+        }
+        
+        try {
+            await apiRequest(`/efs/delete/${encodeURIComponent(filename)}`, {
+                method: 'DELETE'
+            });
+            
+            showSuccess('文件删除成功！');
+            loadFiles();
+        } catch (error) {
+            console.error('删除文件失败:', error);
+        }
+    }
+    
+    // 页面加载时获取数据
+    document.addEventListener('DOMContentLoaded', () => {
+        loadEFSInfo();
+    });
+</script>
+{% endblock %}

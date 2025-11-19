@@ -1,0 +1,282 @@
+{% extends "base.html" %}
+
+{% block title %}扩展监控 - EKS Info WebApp{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>📈 扩展监控</h1>
+    <p>监控 Pod 和节点的自动扩展情况</p>
+    <button onclick="loadAllScalingInfo()" class="btn btn-primary" style="margin-top: 10px;">刷新</button>
+</div>
+
+<div class="content">
+    <!-- 集群概览 -->
+    <div class="card">
+        <div class="card-header">🏢 集群概览</div>
+        <div class="card-body" id="clusterOverview">
+            <!-- 集群概览将通过 JavaScript 加载 -->
+        </div>
+    </div>
+    
+    <!-- 节点列表 -->
+    <div class="card">
+        <div class="card-header">🖥️ 节点列表</div>
+        <div class="card-body" id="nodesList">
+            <!-- 节点列表将通过 JavaScript 加载 -->
+        </div>
+    </div>
+    
+    <!-- Pod 分布 -->
+    <div class="card">
+        <div class="card-header">🔷 Pod 分布</div>
+        <div class="card-body" id="podDistribution">
+            <!-- Pod 分布将通过 JavaScript 加载 -->
+        </div>
+    </div>
+    
+    <!-- Pending Pods -->
+    <div class="card">
+        <div class="card-header">⏳ Pending Pods</div>
+        <div class="card-body" id="pendingPods">
+            <!-- Pending Pods 将通过 JavaScript 加载 -->
+        </div>
+    </div>
+    
+    <!-- HPA 状态 -->
+    <div class="card">
+        <div class="card-header">⚖️ HPA 状态</div>
+        <div class="card-body" id="hpaStatus">
+            <!-- HPA 状态将通过 JavaScript 加载 -->
+        </div>
+    </div>
+    
+    <!-- 扩展历史 -->
+    <div class="card">
+        <div class="card-header">
+            📊 扩展历史
+            <a href="/scaling/history" class="btn btn-secondary" style="float: right; padding: 5px 15px;">查看详细历史</a>
+        </div>
+        <div class="card-body" id="scalingHistory">
+            <!-- 扩展历史将通过 JavaScript 加载 -->
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // 作者: RJ.Wang
+    // 邮箱: wangrenjun@gmail.com
+    // 创建时间: 2025-11-14
+    
+    // 加载所有扩展信息
+    async function loadAllScalingInfo() {
+        try {
+            const data = await apiRequest('/scaling/');
+            displayScalingInfo(data);
+        } catch (error) {
+            console.error('加载扩展信息失败:', error);
+        }
+    }
+    
+    // 显示扩展信息
+    function displayScalingInfo(data) {
+        // 显示集群概览
+        if (data.cluster_overview) {
+            displayClusterOverview(data.cluster_overview);
+        }
+        
+        // 显示节点列表
+        if (data.nodes) {
+            displayNodesList(data.nodes);
+        }
+        
+        // 显示 Pod 分布
+        if (data.pod_distribution) {
+            displayPodDistribution(data.pod_distribution);
+        }
+        
+        // 显示 Pending Pods
+        if (data.pending_pods !== undefined) {
+            displayPendingPods(data.pending_pods);
+        }
+        
+        // 显示 HPA 状态
+        if (data.hpa_status) {
+            displayHPAStatus(data.hpa_status);
+        }
+        
+        // 显示扩展历史
+        if (data.recent_events) {
+            displayScalingHistory(data.recent_events);
+        }
+    }
+    
+    // 显示集群概览
+    function displayClusterOverview(overview) {
+        const container = document.getElementById('clusterOverview');
+        
+        let html = '<table class="table">';
+        html += `<tr><th>总节点数</th><td><span class="status-badge info">${overview.total_nodes || 0}</span></td></tr>`;
+        html += `<tr><th>就绪节点数</th><td><span class="status-badge success">${overview.ready_nodes || 0}</span></td></tr>`;
+        html += `<tr><th>总 Pod 数</th><td><span class="status-badge info">${overview.total_pods || 0}</span></td></tr>`;
+        html += `<tr><th>运行中 Pod</th><td><span class="status-badge success">${overview.running_pods || 0}</span></td></tr>`;
+        html += `<tr><th>Pending Pod</th><td><span class="status-badge ${overview.pending_pods > 0 ? 'warning' : 'success'}">${overview.pending_pods || 0}</span></td></tr>`;
+        html += `<tr><th>平均 CPU 使用率</th><td>${overview.avg_cpu_usage ? overview.avg_cpu_usage.toFixed(2) + '%' : 'N/A'}</td></tr>`;
+        html += `<tr><th>平均内存使用率</th><td>${overview.avg_memory_usage ? overview.avg_memory_usage.toFixed(2) + '%' : 'N/A'}</td></tr>`;
+        html += '</table>';
+        
+        container.innerHTML = html;
+    }
+    
+    // 显示节点列表
+    function displayNodesList(nodes) {
+        const container = document.getElementById('nodesList');
+        
+        if (!nodes || nodes.length === 0) {
+            container.innerHTML = '<p>未找到节点</p>';
+            return;
+        }
+        
+        let html = '<table class="table">';
+        html += '<thead><tr><th>节点名称</th><th>状态</th><th>CPU</th><th>内存</th><th>Pods</th><th>创建时间</th></tr></thead>';
+        html += '<tbody>';
+        
+        nodes.forEach(node => {
+            html += '<tr>';
+            html += `<td>${node.name}</td>`;
+            html += `<td><span class="status-badge ${getStatusClass(node.status)}">${node.status}</span></td>`;
+            html += `<td>${node.cpu_capacity || 'N/A'}</td>`;
+            html += `<td>${node.memory_capacity || 'N/A'}</td>`;
+            html += `<td>${node.pod_count || 0} / ${node.pod_capacity || 'N/A'}</td>`;
+            html += `<td>${formatTimestamp(node.created_at)}</td>`;
+            html += '</tr>';
+        });
+        
+        html += '</tbody></table>';
+        container.innerHTML = html;
+    }
+    
+    // 显示 Pod 分布
+    function displayPodDistribution(distribution) {
+        const container = document.getElementById('podDistribution');
+        
+        if (!distribution || Object.keys(distribution).length === 0) {
+            container.innerHTML = '<p>无 Pod 分布数据</p>';
+            return;
+        }
+        
+        let html = '<table class="table">';
+        html += '<thead><tr><th>节点</th><th>Pod 数量</th><th>Pod 列表</th></tr></thead>';
+        html += '<tbody>';
+        
+        for (const [nodeName, pods] of Object.entries(distribution)) {
+            html += '<tr>';
+            html += `<td>${nodeName}</td>`;
+            html += `<td><span class="status-badge info">${pods.length}</span></td>`;
+            html += `<td>${pods.map(p => p.name).join(', ')}</td>`;
+            html += '</tr>';
+        }
+        
+        html += '</tbody></table>';
+        container.innerHTML = html;
+    }
+    
+    // 显示 Pending Pods
+    function displayPendingPods(pendingPods) {
+        const container = document.getElementById('pendingPods');
+        
+        if (!pendingPods || pendingPods.length === 0) {
+            container.innerHTML = '<p class="status-badge success">✅ 没有 Pending 状态的 Pod</p>';
+            return;
+        }
+        
+        let html = '<div class="status-badge warning" style="display: block; margin-bottom: 10px;">⚠️ 检测到 ' + pendingPods.length + ' 个 Pending Pod，可能触发节点扩展</div>';
+        html += '<table class="table">';
+        html += '<thead><tr><th>Pod 名称</th><th>原因</th><th>消息</th><th>等待时间</th></tr></thead>';
+        html += '<tbody>';
+        
+        pendingPods.forEach(pod => {
+            html += '<tr>';
+            html += `<td>${pod.name}</td>`;
+            html += `<td><span class="status-badge warning">${pod.reason || 'N/A'}</span></td>`;
+            html += `<td>${pod.message || 'N/A'}</td>`;
+            html += `<td>${pod.waiting_time || 'N/A'}</td>`;
+            html += '</tr>';
+        });
+        
+        html += '</tbody></table>';
+        container.innerHTML = html;
+    }
+    
+    // 显示 HPA 状态
+    function displayHPAStatus(hpaStatus) {
+        const container = document.getElementById('hpaStatus');
+        
+        if (!hpaStatus || hpaStatus.length === 0) {
+            container.innerHTML = '<p>未找到 HPA 配置</p>';
+            return;
+        }
+        
+        let html = '<table class="table">';
+        html += '<thead><tr><th>名称</th><th>当前副本</th><th>期望副本</th><th>最小/最大</th><th>CPU 使用率</th><th>目标 CPU</th></tr></thead>';
+        html += '<tbody>';
+        
+        hpaStatus.forEach(hpa => {
+            const cpuClass = hpa.current_cpu_utilization > hpa.target_cpu_utilization ? 'error' : 'success';
+            html += '<tr>';
+            html += `<td>${hpa.name}</td>`;
+            html += `<td><span class="status-badge info">${hpa.current_replicas || 0}</span></td>`;
+            html += `<td><span class="status-badge success">${hpa.desired_replicas || 0}</span></td>`;
+            html += `<td>${hpa.min_replicas || 0} / ${hpa.max_replicas || 0}</td>`;
+            html += `<td><span class="status-badge ${cpuClass}">${hpa.current_cpu_utilization || 0}%</span></td>`;
+            html += `<td>${hpa.target_cpu_utilization || 0}%</td>`;
+            html += '</tr>';
+        });
+        
+        html += '</tbody></table>';
+        container.innerHTML = html;
+    }
+    
+    // 显示扩展历史
+    function displayScalingHistory(events) {
+        const container = document.getElementById('scalingHistory');
+        
+        if (!events || events.length === 0) {
+            container.innerHTML = '<p>暂无扩展事件</p>';
+            return;
+        }
+        
+        let html = '<table class="table">';
+        html += '<thead><tr><th>时间</th><th>类型</th><th>触发原因</th><th>变化</th><th>状态</th></tr></thead>';
+        html += '<tbody>';
+        
+        events.forEach(event => {
+            html += '<tr>';
+            html += `<td>${formatTimestamp(event.timestamp)}</td>`;
+            html += `<td><span class="status-badge info">${event.event_type || 'N/A'}</span></td>`;
+            html += `<td>${event.trigger || 'N/A'}</td>`;
+            
+            if (event.details) {
+                html += `<td>${event.details.replicas_before || 0} → ${event.details.replicas_after || 0}</td>`;
+            } else {
+                html += `<td>N/A</td>`;
+            }
+            
+            html += `<td><span class="status-badge ${getStatusClass(event.status || 'unknown')}">${event.status || 'N/A'}</span></td>`;
+            html += '</tr>';
+        });
+        
+        html += '</tbody></table>';
+        container.innerHTML = html;
+    }
+    
+    // 页面加载时获取数据
+    document.addEventListener('DOMContentLoaded', () => {
+        loadAllScalingInfo();
+        
+        // 每 10 秒自动刷新
+        setInterval(loadAllScalingInfo, 10000);
+    });
+</script>
+{% endblock %}

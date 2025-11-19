@@ -1,0 +1,226 @@
+{% extends "base.html" %}
+
+{% block title %}网络信息 - EKS Info WebApp{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>🌐 网络架构信息</h1>
+    <p>查看详细的网络配置和安全策略</p>
+</div>
+
+<div class="content" id="networkInfo">
+    <!-- 网络信息将通过 JavaScript 加载 -->
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // 作者: RJ.Wang
+    // 邮箱: wangrenjun@gmail.com
+    // 创建时间: 2025-11-14
+    
+    // 加载网络信息
+    async function loadNetworkInfo() {
+        try {
+            const data = await apiRequest('/network/');
+            displayNetworkInfo(data);
+        } catch (error) {
+            console.error('加载网络信息失败:', error);
+        }
+    }
+    
+    // 显示网络信息
+    function displayNetworkInfo(data) {
+        const container = document.getElementById('networkInfo');
+        let html = '';
+        
+        // VPC 信息
+        if (data.vpc_info) {
+            const vpc = data.vpc_info;
+            html += `
+                <div class="card">
+                    <div class="card-header">🏢 VPC 信息</div>
+                    <div class="card-body">
+                        <table class="table">
+                            <tr><th>VPC ID</th><td>${vpc.vpc_id || 'N/A'}</td></tr>
+                            <tr><th>CIDR 块</th><td>${vpc.cidr_block || 'N/A'}</td></tr>
+                            <tr><th>状态</th><td><span class="status-badge ${getStatusClass(vpc.state || 'unknown')}">${vpc.state || 'N/A'}</span></td></tr>
+                            <tr><th>DNS 支持</th><td>${vpc.enable_dns_support ? '✅ 启用' : '❌ 禁用'}</td></tr>
+                            <tr><th>DNS 主机名</th><td>${vpc.enable_dns_hostnames ? '✅ 启用' : '❌ 禁用'}</td></tr>
+                        </table>
+                    </div>
+                </div>
+            `;
+        }
+        
+        // 子网信息
+        if (data.subnets && data.subnets.length > 0) {
+            html += `
+                <div class="card">
+                    <div class="card-header">🔌 子网信息</div>
+                    <div class="card-body">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>子网 ID</th>
+                                    <th>CIDR</th>
+                                    <th>可用区</th>
+                                    <th>类型</th>
+                                    <th>可用 IP</th>
+                                    <th>状态</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+            `;
+            
+            data.subnets.forEach(subnet => {
+                html += `
+                    <tr>
+                        <td>${subnet.subnet_id || 'N/A'}</td>
+                        <td>${subnet.cidr_block || 'N/A'}</td>
+                        <td>${subnet.availability_zone || 'N/A'}</td>
+                        <td><span class="status-badge ${subnet.map_public_ip ? 'info' : 'success'}">${subnet.map_public_ip ? '公有' : '私有'}</span></td>
+                        <td>${subnet.available_ip_count || 0}</td>
+                        <td><span class="status-badge ${getStatusClass(subnet.state || 'unknown')}">${subnet.state || 'N/A'}</span></td>
+                    </tr>
+                `;
+            });
+            
+            html += `
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            `;
+        }
+        
+        // 安全组信息
+        if (data.security_groups && data.security_groups.length > 0) {
+            html += `
+                <div class="card">
+                    <div class="card-header">🔒 安全组规则</div>
+                    <div class="card-body">
+            `;
+            
+            data.security_groups.forEach(sg => {
+                html += `
+                    <h4>${sg.group_name} (${sg.group_id})</h4>
+                    <p>${sg.description}</p>
+                    
+                    <h5>入站规则</h5>
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>协议</th>
+                                <th>端口范围</th>
+                                <th>来源</th>
+                                <th>描述</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                `;
+                
+                if (sg.ingress_rules && sg.ingress_rules.length > 0) {
+                    sg.ingress_rules.forEach(rule => {
+                        html += `
+                            <tr>
+                                <td>${rule.protocol || 'N/A'}</td>
+                                <td>${rule.from_port || 'N/A'} - ${rule.to_port || 'N/A'}</td>
+                                <td>${rule.source || 'N/A'}</td>
+                                <td>${rule.description || '-'}</td>
+                            </tr>
+                        `;
+                    });
+                } else {
+                    html += '<tr><td colspan="4">无入站规则</td></tr>';
+                }
+                
+                html += `
+                        </tbody>
+                    </table>
+                    
+                    <h5>出站规则</h5>
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>协议</th>
+                                <th>端口范围</th>
+                                <th>目标</th>
+                                <th>描述</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                `;
+                
+                if (sg.egress_rules && sg.egress_rules.length > 0) {
+                    sg.egress_rules.forEach(rule => {
+                        html += `
+                            <tr>
+                                <td>${rule.protocol || 'N/A'}</td>
+                                <td>${rule.from_port || 'N/A'} - ${rule.to_port || 'N/A'}</td>
+                                <td>${rule.destination || 'N/A'}</td>
+                                <td>${rule.description || '-'}</td>
+                            </tr>
+                        `;
+                    });
+                } else {
+                    html += '<tr><td colspan="4">无出站规则</td></tr>';
+                }
+                
+                html += `
+                        </tbody>
+                    </table>
+                    <hr>
+                `;
+            });
+            
+            html += `
+                    </div>
+                </div>
+            `;
+        }
+        
+        // Load Balancer 信息
+        if (data.load_balancers && data.load_balancers.length > 0) {
+            html += `
+                <div class="card">
+                    <div class="card-header">⚖️ Load Balancer 信息</div>
+                    <div class="card-body">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>名称</th>
+                                    <th>类型</th>
+                                    <th>DNS 名称</th>
+                                    <th>状态</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+            `;
+            
+            data.load_balancers.forEach(lb => {
+                html += `
+                    <tr>
+                        <td>${lb.name || 'N/A'}</td>
+                        <td><span class="status-badge info">${lb.type || 'N/A'}</span></td>
+                        <td>${lb.dns_name || 'N/A'}</td>
+                        <td><span class="status-badge ${getStatusClass(lb.state || 'unknown')}">${lb.state || 'N/A'}</span></td>
+                    </tr>
+                `;
+            });
+            
+            html += `
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            `;
+        }
+        
+        container.innerHTML = html;
+    }
+    
+    // 页面加载时获取数据
+    document.addEventListener('DOMContentLoaded', loadNetworkInfo);
+</script>
+{% endblock %}
