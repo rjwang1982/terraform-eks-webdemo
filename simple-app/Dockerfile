@@ -10,8 +10,12 @@ FROM --platform=linux/arm64 python:3.11-slim
 
 WORKDIR /app
 
-# 安装依赖
-RUN pip install --no-cache-dir flask gunicorn
+# 安装系统依赖和 Python 包
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends curl && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/* && \
+    pip install --no-cache-dir flask gunicorn requests
 
 # 复制应用代码
 COPY app.py .

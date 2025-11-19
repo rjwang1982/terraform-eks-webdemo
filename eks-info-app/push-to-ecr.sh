@@ -28,7 +28,7 @@ if [ -z "$1" ]; then
     echo -e "  $0 <ecr-repo-uri> [image-tag]"
     echo ""
     echo -e "${YELLOW}示例:${NC}"
-    echo -e "  $0 269490040603.dkr.ecr.ap-southeast-1.amazonaws.com/eks-info-app latest"
+    echo -e "  $0 <AWS_ACCOUNT_ID>.dkr.ecr.ap-southeast-1.amazonaws.com/eks-info-app latest"
     echo ""
     exit 1
 fi

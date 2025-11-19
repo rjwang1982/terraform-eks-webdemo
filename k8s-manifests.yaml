@@ -1,0 +1,147 @@
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: aws-load-balancer-controller
+  namespace: kube-system
+  labels:
+    app.kubernetes.io/name: aws-load-balancer-controller
+    app.kubernetes.io/component: controller
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::<AWS_ACCOUNT_ID>:role/aws-load-balancer-controller-RJtest-eks-cluster-202511171652
+    eks.amazonaws.com/sts-regional-endpoints: "true"
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rj-py-webdemo
+  namespace: rj-webdemo
+  labels:
+    app: rj-py-webdemo
+    version: "1.0"
+    environment: sandbox
+    owner: rj.wang
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: rj-py-webdemo
+  template:
+    metadata:
+      labels:
+        app: rj-py-webdemo
+        version: "1.0"
+    spec:
+      containers:
+      - name: rj-py-webdemo
+        image: rjwang/rj-py-webdemo:v2.1
+        ports:
+        - containerPort: 80
+          name: http
+          protocol: TCP
+        - containerPort: 8080
+          name: http-alt
+          protocol: TCP
+        env:
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: POD_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        - name: NODE_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+        - name: SERVICE_ACCOUNT
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.serviceAccountName
+        - name: ENVIRONMENT
+          value: sandbox
+        - name: APP_VERSION
+          value: "2.1"
+        resources:
+          limits:
+            cpu: 200m
+            memory: 256Mi
+          requests:
+            cpu: 100m
+            memory: 128Mi
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 5
+          periodSeconds: 5
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rj-py-webdemo-service
+  namespace: rj-webdemo
+  labels:
+    app: rj-py-webdemo
+    environment: sandbox
+    owner: rj.wang
+spec:
+  selector:
+    app: rj-py-webdemo
+  ports:
+  - name: http
+    port: 80
+    targetPort: 80
+    protocol: TCP
+  - name: http-alt
+    port: 8080
+    targetPort: 8080
+    protocol: TCP
+  type: NodePort
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: rj-py-webdemo-ingress
+  namespace: rj-webdemo
+  labels:
+    app: rj-py-webdemo
+    environment: sandbox
+    owner: rj.wang
+  annotations:
+    kubernetes.io/ingress.class: alb
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/load-balancer-name: rj-webdemo-alb
+    alb.ingress.kubernetes.io/tags: Environment=Sandbox,Owner=RJ.Wang,BillingCode=RJ,Application=rj-py-webdemo
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80}]'
+    alb.ingress.kubernetes.io/healthcheck-path: /
+    alb.ingress.kubernetes.io/healthcheck-interval-seconds: "30"
+    alb.ingress.kubernetes.io/healthcheck-timeout-seconds: "5"
+    alb.ingress.kubernetes.io/healthy-threshold-count: "2"
+    alb.ingress.kubernetes.io/unhealthy-threshold-count: "3"
+spec:
+  rules:
+  - http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: rj-py-webdemo-service
+            port:
+              number: 80

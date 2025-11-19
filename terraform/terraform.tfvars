@@ -21,7 +21,7 @@ vpc_cidr = "10.101.0.0/16"
 # --------------------------
 cluster_name = "RJtest-eks-cluster-202511171652"
 
-ssh_key_name = "RJ-test-Pem-269490040603"
+ssh_key_name = "RJ-test-Pem-<AWS_ACCOUNT_ID>"
 
 # --------------------------
 # 安全组允许的 SSH 访问 IP 段

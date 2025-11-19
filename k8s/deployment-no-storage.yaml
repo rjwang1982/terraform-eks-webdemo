@@ -24,7 +24,7 @@ spec:
       containers:
       - name: eks-info-app
         # ECR 镜像 URI
-        image: 269490040603.dkr.ecr.ap-southeast-1.amazonaws.com/eks-info-app:latest
+        image: <AWS_ACCOUNT_ID>.dkr.ecr.ap-southeast-1.amazonaws.com/eks-info-app:latest
         imagePullPolicy: Always
         ports:
         - name: http

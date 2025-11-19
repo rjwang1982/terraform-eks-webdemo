@@ -431,3 +431,119 @@ resource "aws_iam_role_policy" "aws_load_balancer_controller_inline" {
   })
 }
 
+
+
+# --------------------------
+# 应用 IAM Role（用于 IRSA）
+# --------------------------
+
+# 提取 OIDC Provider URL
+locals {
+  oidc_provider_url = replace(aws_eks_cluster.main.identity[0].oidc[0].issuer, "https://", "")
+}
+
+# IAM 策略文档 - 应用 Assume Role
+data "aws_iam_policy_document" "app_assume_role_policy" {
+  statement {
+    actions = ["sts:AssumeRoleWithWebIdentity"]
+    effect  = "Allow"
+
+    condition {
+      test     = "StringEquals"
+      variable = "${local.oidc_provider_url}:sub"
+      values   = ["system:serviceaccount:rj-webdemo:rj-webdemo-sa"]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "${local.oidc_provider_url}:aud"
+      values   = ["sts.amazonaws.com"]
+    }
+
+    principals {
+      identifiers = [aws_iam_openid_connect_provider.eks.arn]
+      type        = "Federated"
+    }
+  }
+}
+
+# IAM 角色 - 应用
+resource "aws_iam_role" "app_role" {
+  name               = "${var.cluster_name}-app-role"
+  assume_role_policy = data.aws_iam_policy_document.app_assume_role_policy.json
+
+  tags = {
+    Name        = "${var.cluster_name}-app-role"
+    BillingCode = "RJ"
+    Owner       = "RJ.Wang"
+    Environment = "Sandbox"
+  }
+}
+
+# IAM 策略 - S3 访问
+resource "aws_iam_role_policy" "app_s3_policy" {
+  name = "${var.cluster_name}-app-s3-policy"
+  role = aws_iam_role.app_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "s3:GetObject",
+          "s3:PutObject",
+          "s3:DeleteObject",
+          "s3:ListBucket"
+        ]
+        Resource = [
+          aws_s3_bucket.app.arn,
+          "${aws_s3_bucket.app.arn}/*"
+        ]
+      }
+    ]
+  })
+}
+
+# IAM 策略 - CloudWatch Logs
+resource "aws_iam_role_policy" "app_cloudwatch_policy" {
+  name = "${var.cluster_name}-app-cloudwatch-policy"
+  role = aws_iam_role.app_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "logs:CreateLogGroup",
+          "logs:CreateLogStream",
+          "logs:PutLogEvents",
+          "logs:DescribeLogStreams"
+        ]
+        Resource = "arn:aws:logs:*:*:*"
+      }
+    ]
+  })
+}
+
+# IAM 策略 - EC2 元数据访问
+resource "aws_iam_role_policy" "app_ec2_metadata_policy" {
+  name = "${var.cluster_name}-app-ec2-metadata-policy"
+  role = aws_iam_role.app_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "ec2:DescribeInstances",
+          "ec2:DescribeTags",
+          "ec2:DescribeVolumes"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
+}

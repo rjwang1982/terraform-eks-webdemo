@@ -32,7 +32,7 @@ variable "cluster_name" {
 variable "ssh_key_name" {
   description = "SSH 密钥对名称"
   type        = string
-  default     = "RJ-test-Pem-269490040603"
+  default     = "RJ-test-Pem-<AWS_ACCOUNT_ID>"
 }
 
 variable "allowed_ssh_cidr" {

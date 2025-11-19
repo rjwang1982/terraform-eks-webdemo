@@ -311,6 +311,40 @@ resource "aws_eks_cluster" "main" {
   }
 }
 
+# Launch Template - 配置元数据选项和 SSH 访问
+resource "aws_launch_template" "eks_nodes" {
+  name_prefix = "${var.cluster_name}-node-"
+  description = "Launch template for EKS nodes with IMDS hop limit 2"
+
+  key_name = var.ssh_key_name
+
+  vpc_security_group_ids = [aws_security_group.eks_nodes.id]
+
+  metadata_options {
+    http_endpoint               = "enabled"
+    http_tokens                 = "required"  # 强制使用 IMDSv2
+    http_put_response_hop_limit = 2           # 允许 Pod 访问元数据
+    instance_metadata_tags      = "disabled"
+  }
+
+  tag_specifications {
+    resource_type = "instance"
+    tags = {
+      Name        = "${var.cluster_name}-node"
+      BillingCode = "RJ"
+      Owner       = "RJ.Wang"
+      Environment = "Sandbox"
+    }
+  }
+
+  tags = {
+    Name        = "${var.cluster_name}-launch-template"
+    BillingCode = "RJ"
+    Owner       = "RJ.Wang"
+    Environment = "Sandbox"
+  }
+}
+
 resource "aws_eks_node_group" "main" {
   cluster_name    = aws_eks_cluster.main.name
   node_group_name = "${var.cluster_name}-nodes"
@@ -332,9 +366,10 @@ resource "aws_eks_node_group" "main" {
     max_unavailable = 1
   }
 
-  remote_access {
-    ec2_ssh_key               = var.ssh_key_name
-    source_security_group_ids = [aws_security_group.eks_nodes.id]
+  # 使用 Launch Template（包含元数据和 SSH 配置）
+  launch_template {
+    id      = aws_launch_template.eks_nodes.id
+    version = "$Latest"
   }
 
   depends_on = [

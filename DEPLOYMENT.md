@@ -130,7 +130,7 @@ aws --profile terraform_0603 sts get-caller-identity
 
 ### 3. SSH 密钥对
 
-确保在 AWS 中已创建 SSH 密钥对（默认: RJ-test-Pem-269490040603）
+确保在 AWS 中已创建 SSH 密钥对（默认: RJ-test-Pem-<AWS_ACCOUNT_ID>）
 
 ---
 
@@ -230,7 +230,7 @@ kubectl get ingress -n rj-webdemo eks-info-app-ingress
 #### EKS Info App
 - **命名空间**: rj-webdemo
 - **副本数**: 当前 10 个（由 HPA 自动扩展）
-- **镜像**: 269490040603.dkr.ecr.ap-southeast-1.amazonaws.com/eks-info-app:latest
+- **镜像**: <AWS_ACCOUNT_ID>.dkr.ecr.ap-southeast-1.amazonaws.com/eks-info-app:latest
 - **架构**: ARM64
 - **访问地址**: http://k8s-rjwebdem-eksinfoa-276a74cf51-1382595953.ap-southeast-1.elb.amazonaws.com
 
@@ -323,7 +323,7 @@ aws_region              = "ap-southeast-1"
 cluster_name            = "RJtest-eks-cluster-202511171652"
 vpc_cidr                = "10.101.0.0/16"
 app_namespace           = "rj-webdemo"
-ssh_key_name            = "RJ-test-Pem-269490040603"
+ssh_key_name            = "RJ-test-Pem-<AWS_ACCOUNT_ID>"
 eks_info_app_image_tag  = "latest"
 ```
 

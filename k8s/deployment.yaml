@@ -20,11 +20,12 @@ spec:
       labels:
         app: eks-info-app
     spec:
-      serviceAccountName: eks-info-app-sa
+      serviceAccountName: rj-webdemo-sa
+      hostNetwork: false
       containers:
-      - name: eks-info-app
-        # ECR 镜像 URI
-        image: 269490040603.dkr.ecr.ap-southeast-1.amazonaws.com/eks-info-app:latest
+      - name: rj-webdemo
+        # Docker Hub 镜像
+        image: rjwang/rj-py-webdemo:1.0
         imagePullPolicy: Always
         ports:
         - name: http
@@ -65,12 +66,20 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: spec.nodeName
+        - name: SERVICE_ACCOUNT
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.serviceAccountName
         - name: S3_BUCKET_NAME
           value: "eks-info-app-data"
         - name: FLASK_ENV
           value: "production"
         - name: LOG_LEVEL
           value: "INFO"
+        - name: ENVIRONMENT
+          value: "production"
+        - name: APP_VERSION
+          value: "2.0"
         
         # 健康检查探针
         livenessProbe:
